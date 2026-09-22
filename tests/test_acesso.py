@@ -114,3 +114,19 @@ def test_sem_proxy_confiavel_cabecalho_e_ignorado(cliente, monkeypatch):
 
 def test_cron_fica_fora_da_restricao_mas_exige_segredo(cliente):
     assert cliente.get("/api/cron/coleta", headers={"x-forwarded-for": "8.8.8.8"}).status_code == 401
+
+
+def test_busca_por_parte_e_inclusao_manual(cliente):
+    from anteve import pipeline
+    from tests.test_especificacao import reg
+    adm = _entrar(cliente)
+    pid = pipeline.processar_registro(api.db, reg())["processo_id"]
+    cnj = api.db.um("SELECT numero_cnj FROM processos WHERE id=?", (pid,))["numero_cnj"]
+    r = cliente.post(f"/api/processos/{cnj}/partes", headers=adm,
+                     json={"nome": "Topservice Terceirização Eireli", "polo": "PASSIVO", "evidencia_url": "https://srv03.tjpe.jus.br/x"})
+    assert r.status_code == 200
+    assert cliente.post(f"/api/processos/{cnj}/partes", headers=adm, json={"nome": "X", "evidencia_url": ""}).status_code == 422
+    achados = cliente.get("/api/processos", params={"q": "terceirizacao"}, headers=adm).json()
+    assert [p["numero_cnj"] for p in achados] == [cnj]
+    assert achados[0]["partes"][0]["polo"] == "PASSIVO"
+    assert cliente.get("/api/processos", params={"q": "nao existe ninguem"}, headers=adm).json() == []

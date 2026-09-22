@@ -1,4 +1,5 @@
 """Fluxo funcional (seção 5): do registro coletado até oportunidade e alerta."""
+import re
 from . import notifier, rules, scoring, tpu as tpu_mod
 from .config import CONFIG
 from .normalize import (agora, cnj_digitos, cnpj_formatar, cnpj_limpar, cnpj_raiz, cnpj_valido, hash_obj, iso,
@@ -252,6 +253,22 @@ def reprocessar(db, processo_id, ator="sistema"):
 
 
 # ------------------------------------------------------------ documentos
+POLOS = {"A": "ATIVO", "ATIVO": "ATIVO", "P": "PASSIVO", "PASSIVO": "PASSIVO"}
+
+
+def registrar_parte(db, processo_id, nome, polo, tipo="PARTE", oab=None, fonte="DJEN", url=None, ator="coletor-diario"):
+    """Parte ou advogado do processo. Guarda só nome, polo e OAB; nenhum documento de pessoa física."""
+    from .normalize import chave_texto
+    nome = re.sub(r"\s+", " ", (nome or "")).strip()
+    if len(nome) < 2:
+        return False
+    polo = POLOS.get((polo or "").strip().upper(), "OUTRO")
+    antes = db.um("SELECT COUNT(*) n FROM partes WHERE processo_id=?", (processo_id,))["n"]
+    db.exec("INSERT OR IGNORE INTO partes(processo_id,nome,chave,polo,tipo,oab,fonte,url,registrado_por,coletado_em) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?)", (processo_id, nome.upper(), chave_texto(nome), polo, tipo, oab, fonte, url, ator, iso(agora())))
+    return db.um("SELECT COUNT(*) n FROM partes WHERE processo_id=?", (processo_id,))["n"] > antes
+
+
 def incorporar_publicacoes(db, processo_id, publicacoes, ator="coletor-diario"):
     from . import documentos as docs
     p = db.um("SELECT * FROM processos WHERE id=?", (processo_id,))
@@ -260,6 +277,11 @@ def incorporar_publicacoes(db, processo_id, publicacoes, ator="coletor-diario"):
         a = docs.analisar_publicacao(pub, p["numero_cnj"])
         if not a["vinculada"]:
             continue
+        for d in pub.get("destinatarios") or []:
+            registrar_parte(db, processo_id, d.get("nome"), d.get("polo"), fonte=pub.get("fonte", "DJEN"), url=pub.get("url"), ator=ator)
+        for adv in pub.get("advogados") or []:
+            registrar_parte(db, processo_id, adv.get("nome"), "OUTRO", tipo="ADVOGADO", oab=adv.get("oab"),
+                            fonte=pub.get("fonte", "DJEN"), url=pub.get("url"), ator=ator)
         antes = db.um("SELECT COUNT(*) n FROM evidencias WHERE processo_id=?", (processo_id,))["n"]
         _registrar_evidencia(db, processo_id, a["nivel"], "PUBLICACAO_OFICIAL", pub.get("fonte", "DJEN"), pub.get("url"),
                              a["resumo"], documento={"ato": a["ato"], "data": pub.get("data"), "orgao": pub.get("orgao")},
