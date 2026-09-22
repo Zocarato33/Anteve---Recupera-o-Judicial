@@ -1,0 +1,237 @@
+{
+ "documento": "Antevê: Manual do Usuário",
+ "versao": "1.0",
+ "itens": [
+  {
+   "item": "1",
+   "titulo": "Introdução",
+   "secao": "1. Introdução",
+   "pagina": 3,
+   "texto": "O Antevê mostra os novos pedidos de recuperação judicial dos 27 Tribunais de Justiça, com a fonte oficial de cada informação, e ajuda a transformar esses pedidos em oportunidades comerciais. Este manual explica cada tela, card, campo e botão.\nTrês conceitos para entender antes de usar:\nConfirmado: existe fonte oficial dizendo que o processo é uma recuperação judicial e nada diverge. Aparece com um selo escuro preenchido.\nProvisório: há indício de RJ, mas algo diverge ou falta confirmar. Aparece com borda tracejada e precisa de revisão humana antes de qualquer oferta.\nPreventivo: sinais de que uma empresa pode vir a pedir RJ. Nunca é uma RJ confirmada e aparece sempre com a frase \"Recuperação judicial não confirmada\" e um selo listrado.\nPerfis de acesso:\nPerfil: O que pode fazer\nAdministrador: Tudo, inclusive coleta manual, TPU e gestão de usuários\nAnalista: Consultar, revisar, vincular CNPJ e partes, usar o preventivo e exportar\nComercial: Consultar e operar o funil de oportunidades\nLeitor: Apenas consultar\nTodas as classificações são sujeitas a validação jurídica."
+  },
+  {
+   "item": "2",
+   "titulo": "Acesso ao sistema",
+   "secao": "2. Acesso ao sistema",
+   "pagina": 4,
+   "texto": "O sistema só abre dentro da rede da SBK e pede usuário e senha fornecidos pelo administrador.\nPara entrar:\nAcesse o endereço do sistema a partir da rede SBK.\nEm Usuário, digite seu login (por exemplo, nome.sobrenome). Maiúsculas não fazem diferença.\nEm Senha, digite sua senha.\nClique em Entrar.\nSessão: depois de entrar, você continua conectado por 12 horas, mesmo recarregando a página. Passado esse tempo, o sistema volta para a tela de login.\nPara sair: clique em Sair, no canto inferior do menu lateral, abaixo do seu nome e perfil.\nMensagens que podem aparecer:\nMensagem: O que significa; O que fazer\n\"acesso restrito à rede SBK\": Você está fora da rede autorizada; Conecte-se à rede da SBK\n\"usuário ou senha inválidos\": Login ou senha incorretos; Confira os dados ou peça uma nova senha ao administrador\n\"sessão ausente ou expirada\": A sessão venceu ou a senha foi trocada; Entre novamente\nFaixa \"Banco não persistente\" no topo: O sistema está sem banco definitivo; os dados podem sumir; Avise o administrador\nEsqueceu a senha? Peça ao administrador para gerar uma nova na tela Usuários."
+  },
+  {
+   "item": "3",
+   "titulo": "Navegação",
+   "secao": "3. Navegação",
+   "pagina": 5,
+   "texto": "O menu lateral, à esquerda, leva a todas as telas. Cada perfil vê apenas as telas que pode usar.\nItem do menu: Para que serve; Quem vê\nNovas recuperações: Lista dos pedidos de RJ; Todos\nFalência e extrajudicial: Pedidos de falência e recuperações extrajudiciais; Todos\nRevisão humana: Casos que precisam de decisão; o número ao lado mostra quantos estão pendentes; Admin e analista\nPreventivo: Score de sinais de risco por empresa; Admin e analista\nAlertas: Histórico de alertas gerados; Todos\nFontes e saúde: Situação das fontes e botões de coleta; Todos (botões só para admin)\nMétricas: Indicadores de qualidade; Todos\nPreferências: O que você quer receber de alerta e por onde; Todos\nUsuários: Incluir, excluir e gerar senhas; Admin\nNo rodapé do menu aparecem seu login, seu perfil entre parênteses e o botão Sair. No celular, o menu vira uma barra horizontal no topo, com rolagem lateral."
+  },
+  {
+   "item": "4",
+   "titulo": "Novas recuperações judiciais",
+   "secao": "4. Novas recuperações judiciais",
+   "pagina": 6,
+   "texto": "É a tela principal: a lista dos pedidos de recuperação judicial, ordenada por prioridade e, dentro dela, pelos ajuizados mais recentes. O título, os cards e os filtros ficam fixos; só a tabela rola."
+  },
+  {
+   "item": "4.1",
+   "titulo": "Cards do topo",
+   "secao": "4. Novas recuperações judiciais",
+   "pagina": 6,
+   "texto": "Os números consideram a base inteira com os filtros aplicados, e não só as linhas exibidas.\nCard: O que conta\nConfirmados ativos: Pedidos com status Confirmado ou Atualizado: validados em fonte oficial\nProvisórios: Pedidos com divergência ou confirmação insuficiente (status Provisório ou Candidato)\nEncerrados: Pedidos indeferidos, cancelados, com desistência, baixados ou convolados em falência\nContato liberado: Pedidos com CNPJ verificado, confirmados e sem pendência: os únicos que podem ser abordados comercialmente"
+  },
+  {
+   "item": "4.2",
+   "titulo": "Busca e filtros",
+   "secao": "4. Novas recuperações judiciais",
+   "pagina": 6,
+   "texto": "Campo de busca: aceita número CNJ (completo ou parte), nome da vara, nome de parte ou advogado, razão social ou CNPJ. Acentos e maiúsculas não importam para partes. A busca roda sozinha 0,3 segundo depois que você para de digitar.\nStatus: Confirmado, Atualizado, Provisório, Candidato ou Encerrado.\nIdade: Novo (até 7 dias do ajuizamento), Recente (8 a 30 dias) ou Histórico (mais de 30 dias).\nPrioridade: Urgente, Alta, Média ou Monitoramento.\nUF: estado do tribunal.\nOs filtros se combinam. Acima da tabela aparece o total de processos; se houver mais de 300, a tela mostra \"Exibindo 300 de N processos\" e pede para refinar.\nAtenção: a busca por CNPJ ou razão social só encontra processos que já têm empresa vinculada. Se não achar, tente pelo número do processo ou pelo nome da parte."
+  },
+  {
+   "item": "4.3",
+   "titulo": "Colunas da tabela",
+   "secao": "4. Novas recuperações judiciais",
+   "pagina": 6,
+   "texto": "Coluna: O que mostra\nPartes e CNPJ: Empresa vinculada com CNPJ. Sem empresa, mostra o requerente e o requerido vindos das publicações e o aviso \"CNPJ pendente\". Sem nenhuma parte, \"Partes não identificadas\"\nEvento e estágio: Tipo do evento (por exemplo, Pedido de RJ) e o estágio atual (por exemplo, Distribuído, aguardando decisão)\nDatas e latência: Data de ajuizamento, há quantos dias o pedido foi descoberto e uma barra: a parte clara vai do ajuizamento até a disponibilização na fonte; a parte escura, da fonte até a descoberta pelo sistema\nTribunal e processo: Número CNJ, tribunal e vara\nConfiança: Percentual de confiança da classificação e quantas divergências existem\nPrioridade: Nível de prioridade, com um marcador colorido\nStatus: Selo do status e, abaixo, \"contato bloqueado\" quando a abordagem ainda não é permitida\nClique em qualquer linha para abrir o detalhe do processo."
+  },
+  {
+   "item": "4.4",
+   "titulo": "Significado das prioridades",
+   "secao": "4. Novas recuperações judiciais",
+   "pagina": 7,
+   "texto": "Prioridade: Quando\nUrgente: Ajuizado há até 1 dia\nAlta: Ajuizado há até 7 dias, ou até 30 dias ainda aguardando decisão ou já deferido\nMédia: 8 a 30 dias em outros estágios, ou deferido há até 90 dias\nMonitoramento: Casos antigos, encerrados ou fora da camada de RJ\nGrupos com mais de uma empresa recuperanda sobem um nível."
+  },
+  {
+   "item": "4.5",
+   "titulo": "Exportar confirmadas (CSV)",
+   "secao": "4. Novas recuperações judiciais",
+   "pagina": 7,
+   "texto": "O botão no canto superior direito baixa uma planilha (separada por ponto e vírgula) com as RJs confirmadas. Empresas com opt out não saem na planilha, e sinais preventivos nunca são exportados. Disponível para admin e analista; cada exportação fica registrada."
+  },
+  {
+   "item": "5",
+   "titulo": "Detalhe do processo",
+   "secao": "5. Detalhe do processo",
+   "pagina": 8,
+   "texto": "Ao clicar em uma linha, abre um painel lateral com tudo o que o sistema sabe sobre o processo. Feche com o botão Fechar, com a tecla Esc ou clicando fora do painel."
+  },
+  {
+   "item": "5.1",
+   "titulo": "Cabeçalho",
+   "secao": "5. Detalhe do processo",
+   "pagina": 8,
+   "texto": "Selo de status: Confirmado, Atualizado, Provisório, Candidato, Encerrado ou Descartado.\nTítulo: o tipo de evento (por exemplo, Pedido de RJ ou Processamento deferido).\nNúmero CNJ e tribunal.\nDivergências: quadro tracejado com os motivos de dúvida (por exemplo, \"distribuição por dependência\"), quando houver."
+  },
+  {
+   "item": "5.2",
+   "titulo": "Partes",
+   "secao": "5. Detalhe do processo",
+   "pagina": 8,
+   "texto": "Mostra as partes agrupadas em Polo ativo (requerente), Polo passivo (requerido) e Outros (advogados, com OAB). Ao lado de cada nome aparece a origem (DJEN ou MANUAL) e o link \"fonte\".\nIncluir parte (admin e analista), quando o DJEN ainda não trouxe as partes:\nAbra a consulta do processo no site do tribunal.\nClique em Incluir parte para abrir o formulário.\nPreencha Nome, Polo (ativo, passivo ou outros) e Tipo (parte ou advogado).\nSe for advogado, preencha OAB no formato 12345/PE.\nEm URL da consulta processual, cole o endereço da página do tribunal. O campo é obrigatório.\nClique em Incluir parte.\nIncluir uma parte não libera o contato comercial; para isso é preciso vincular o CNPJ (item 5.3)."
+  },
+  {
+   "item": "5.3",
+   "titulo": "Empresa",
+   "secao": "5. Detalhe do processo",
+   "pagina": 8,
+   "texto": "Mostra a empresa vinculada: razão social, CNPJ, raiz do CNPJ, papel (requerente ou litisconsorte), município, UF, porte, CNAE, situação cadastral e outros nomes. Sem empresa, aparece o aviso de que a identidade está pendente e o contato bloqueado.\nVincular identidade (admin e analista):\nClique em Vincular identidade.\nDigite o CNPJ.\nClique em Consultar cadastro para conferir razão social, cidade e situação na Receita.\nEscolha o Papel: Requerente ou Litisconsorte.\nEm URL da evidência, cole o link da capa, petição inicial, decisão ou publicação que comprova que aquela empresa é a requerente. É obrigatório.\nClique em Vincular.\nO sistema recalcula confiança, prioridade e contato na hora e fecha a revisão de identidade."
+  },
+  {
+   "item": "5.4",
+   "titulo": "Processo",
+   "secao": "5. Detalhe do processo",
+   "pagina": 9,
+   "texto": "Campo: O que mostra\nEvento e estágio: Tipo do evento e estágio atual\nClasse: Código e nome da classe processual (129 é Recuperação Judicial)\nAssuntos: Assuntos cadastrados pelo tribunal\nÓrgão julgador: Vara e comarca\nAjuizamento: Data e hora do pedido e a idade (Novo, Recente ou Histórico)\nDisponível na fonte: Quando o processo apareceu no DataJud\nDescoberta: Quando o sistema encontrou o processo e quantos dias depois do ajuizamento\nAdministrador judicial: Nome, quando lido em publicação de nomeação\nConfiança: Percentual e rota da decisão (A, C ou D)\nPrioridade: Nível de prioridade\nFonte oficial: Link para a consulta pública do tribunal (hoje só para o TJSP)\nVersões: Versão das regras e da TPU usadas na classificação"
+  },
+  {
+   "item": "5.5",
+   "titulo": "Motivos, evidências e movimentos",
+   "secao": "5. Detalhe do processo",
+   "pagina": 9,
+   "texto": "Motivos da classificação: por que o sistema chegou a essa conclusão, em frases.\nEvidências: cada prova com nível (A a D), fonte, tipo, resumo e data de coleta. Evidências geradas por IA são marcadas e nunca são primárias.\nMovimentos relevantes: andamentos que importam para a RJ, com código e data. \"Indício, confirmar em documento\" indica movimento genérico."
+  },
+  {
+   "item": "5.6",
+   "titulo": "Oportunidade",
+   "secao": "5. Detalhe do processo",
+   "pagina": 9,
+   "texto": "Aparece só para RJ confirmada e ativa. Mostra a etapa do funil, o responsável e o motivo de encerramento, quando houver. Perfis admin e comercial podem editar:\nResponsável: quem cuida da oportunidade.\nEtapa: Nova, Em análise, Contato autorizado, Contatada, Proposta, Ganha, Perdida ou Encerrada.\nRegistro de contato: anotação do contato feito.\nSalvar funil: grava e registra no histórico.\nCom o contato bloqueado, as etapas Contato autorizado, Contatada e Proposta são recusadas, e a tela avisa."
+  },
+  {
+   "item": "5.7",
+   "titulo": "Revisões, histórico e correção",
+   "secao": "5. Detalhe do processo",
+   "pagina": 10,
+   "texto": "Revisões: itens abertos ou decididos para o processo, com fila, decisão, revisor e justificativa.\nHistórico de alterações: cada mudança de status, estágio, tipo, prioridade ou vara, com data, valor anterior e novo.\nCorreção (todos os perfis): escolha o Tipo (Duplicidade, Erro de classificação, Encerramento, Identidade incorreta ou Contestação da empresa), descreva e clique em Registrar correção. O caso vai para a Revisão humana."
+  },
+  {
+   "item": "6",
+   "titulo": "Falência e extrajudicial",
+   "secao": "6. Falência e extrajudicial",
+   "pagina": 11,
+   "texto": "Mostra, separados das RJs, os pedidos de falência e as recuperações extrajudiciais. Nenhum deles conta como nova recuperação judicial.\nPedido de falência: sinal relevante para a camada preventiva, não é RJ. Quando a empresa tem CNPJ vinculado, vira automaticamente o sinal \"Pedido de falência ativo\" no Preventivo.\nRecuperação extrajudicial: acordo com credores homologado em juízo, classificado à parte.\nCards, busca, filtros, colunas, rolagem e detalhe funcionam exatamente como na tela Novas recuperações (seções 4 e 5). O botão de exportação não aparece aqui."
+  },
+  {
+   "item": "7",
+   "titulo": "Revisão humana",
+   "secao": "7. Revisão humana",
+   "pagina": 12,
+   "texto": "Aqui ficam os casos em que o sistema não decide sozinho. Cada decisão exige uma justificativa de pelo menos 10 caracteres e fica registrada com seu nome.\nFilas (botões no topo):\nFila: O que entra; Botões de decisão\nClassificação: Processos com divergência, provisórios, candidatos e correções pedidas; Confirmar, Descartar, Manter provisório\nIdentidade: RJs sem CNPJ verificado, ou com CNPJ encontrado sem papel claro; Descartar processo, Anotar e manter\nPreventivo: Empresas com score de risco elevado ou prioridade de análise; Aprovar alerta, Rejeitar\nCada item mostra: número CNJ (clique para abrir o detalhe), tribunal, vara, o motivo da revisão, a data de abertura e a data de ajuizamento. O topo da lista informa quantos itens estão pendentes; são exibidos até 300.\nComo decidir:\nAbra o processo e confira as evidências.\nEscreva a justificativa no campo \"Justificativa (obrigatória)\".\nClique no botão da decisão.\nO que cada decisão faz:\nConfirmar: o provisório passa a Confirmado.\nDescartar: o processo sai das listas. Na fila Identidade, descarta o processo inteiro.\nManter provisório / Anotar e manter: grava a observação e deixa o item aberto.\nAprovar alerta: libera o alerta preventivo para quem optou por receber.\nRejeitar: não dispara alerta.\nNa fila Identidade, a forma normal de resolver é vincular o CNPJ no detalhe do processo (seção 5.3); o item se fecha sozinho. A decisão humana prevalece nas coletas seguintes."
+  },
+  {
+   "item": "8",
+   "titulo": "Preventivo",
+   "secao": "8. Preventivo",
+   "pagina": 13,
+   "texto": "Mostra empresas com sinais de que podem vir a pedir recuperação judicial. É um indicador para priorizar análise, não uma previsão, e nunca pode ser divulgado como lista. Visível para admin e analista; cada acesso fica registrado.\nFaixa de aviso no topo: \"Recuperação judicial não confirmada\". A linguagem externa permitida é \"sinais públicos indicam necessidade de análise\".\nCada empresa mostra:\nSelo listrado com o score em pontos (0 a 100).\nRazão social e CNPJ.\nFaixa: Monitoramento (0 a 24), Atenção (25 a 49), Risco elevado (50 a 69) ou Prioridade de análise humana (70 a 100).\nRevisado ou aguardando revisão.\n\"Já possui RJ confirmada\", quando for o caso.\nFatores: cada sinal com os pontos, a descrição, a fonte e, se não contar, o motivo (expirado, sem fonte ou sem data).\nSalvaguarda: aviso quando o score foi limitado a 49 por falta de fontes confiáveis."
+  },
+  {
+   "item": "8",
+   "titulo": "Registrar sinal",
+   "secao": "8. Preventivo",
+   "pagina": 13,
+   "texto": "Campo: Como preencher\nCNPJ: CNPJ da empresa\nTipo: Um dos sinais do catálogo; a lista mostra o peso e a validade em dias. Os negativos (quitação, extinção do pedido de falência, esclarecimento oficial) reduzem o score\nNível da fonte: A: documento do próprio processo; B: fonte oficial; C: provedor licenciado; D: notícia ou menção\nFonte: Nome da fonte (obrigatório)\nURL: Link da fonte (obrigatório)\nData do sinal: Quando o fato aconteceu; define a validade\nDescrição: Resumo do sinal\nClique em Registrar. Sinais de nível D valem no máximo 3 pontos. Score em Risco elevado ou acima abre um item na Revisão humana, fila Preventivo."
+  },
+  {
+   "item": "9",
+   "titulo": "Alertas",
+   "secao": "9. Alertas",
+   "pagina": 14,
+   "texto": "Lista os 200 alertas mais recentes gerados pelo sistema, do mais novo para o mais antigo. Alertas preventivos só aparecem para admin e analista.\nSelo: Quando aparece\nConfirmado: Nova recuperação judicial identificada em fonte oficial\nAtualização: Uma RJ já confirmada mudou de estágio ou de tipo\nPreventivo: Sinal preventivo aprovado em revisão\nCorreção: Um alerta anterior foi corrigido (a RJ foi rebaixada ou descartada)\nCada alerta mostra: o selo, o assunto (por exemplo, \"Nova recuperação judicial identificada | empresa | UF\"), o resumo, a data, a próxima ação sugerida e o link abrir processo.\nOs mesmos alertas são enviados por e-mail, webhook, Slack ou Teams para quem configurou em Preferências."
+  },
+  {
+   "item": "10",
+   "titulo": "Fontes e saúde",
+   "secao": "10. Fontes e saúde",
+   "pagina": 15,
+   "texto": "Mostra se cada fonte está funcionando em cada tribunal. Falha de fonte nunca significa que não há processo: significa que o sistema ainda não conseguiu consultar."
+  },
+  {
+   "item": "10.1",
+   "titulo": "Cards de saúde",
+   "secao": "10. Fontes e saúde",
+   "pagina": 15,
+   "texto": "Um card por fonte e tribunal (por exemplo, \"DataJud TJSP\" ou \"DJEN NACIONAL\"), com:\nStatus: operando (OK), parcial, indisponível ou interrompido por mudança de esquema.\nÚltimo sucesso: data e hora da última consulta concluída.\nErro: o motivo da falha, quando houver.\nRegistros e tempo: quantos registros vieram e quanto a consulta levou, em milissegundos.\nStatus: O que significa; Precisa de ação?\nOperando: Última coleta concluída; Não\nParcial: O tempo da execução acabou; a próxima continua de onde parou; Não\nIndisponível: A fonte não respondeu ou recusou o acesso; Se persistir, avisar a equipe técnica\nInterrompido por esquema: A fonte mudou o formato dos dados; Sim, avisar a equipe técnica"
+  },
+  {
+   "item": "10.2",
+   "titulo": "Outros blocos",
+   "secao": "10. Fontes e saúde",
+   "pagina": 15,
+   "texto": "Dicionário TPU: versão vigente das tabelas do CNJ e o início do hash que a identifica.\nCursores incrementais: até que data cada tribunal já foi lido. A próxima coleta relê as últimas 72 horas por segurança.\nExecuções recentes: as 20 últimas execuções, com tipo, início e fim."
+  },
+  {
+   "item": "10.3",
+   "titulo": "Botões (só administrador)",
+   "secao": "10. Fontes e saúde",
+   "pagina": 15,
+   "texto": "Botão: O que faz; Tempo\nSincronizar TPU: Confere no CNJ os códigos de classes, assuntos e movimentos usados pelas regras e grava nova versão se algo mudou; Segundos\nBuscar partes no DJEN: Consulta as publicações dos processos que ainda não têm partes ou publicação; mostra quantos processos consultou e quantas partes novas achou; Até alguns minutos\nExecutar coleta agora: Busca no DataJud os processos atualizados, em 5 lotes (\"Coletando lote 1 de 5\"), cobrindo os 27 TJs; Cerca de 4 minutos\nA coleta também roda sozinha a cada 10 minutos. Use os botões para antecipar, por exemplo logo depois de uma instalação."
+  },
+  {
+   "item": "11",
+   "titulo": "Métricas",
+   "secao": "11. Métricas",
+   "pagina": 17,
+   "texto": "Mostra a qualidade do sistema medida sobre a operação real. Um card sem número aparece como \"sem dados\" até haver informação suficiente.\nCard: O que mede; Meta; Quando passa a ter valor\nCobertura confirmada: Quantas RJs de uma amostra oficial conhecida o sistema encontrou; 95% ou mais; Depois que o administrador carrega a amostra de controle\nPrecisão confirmada: Quantos confirmados não foram descartados na revisão humana; 98% ou mais; Depois das primeiras decisões na Revisão humana\nLatência na fonte (P50 e P95): Horas entre o processo aparecer no DataJud e o sistema descobri-lo; P50 até 2 h; P95 até 24 h; Depois da primeira coleta incremental\nAtraso judicial médio: Dias entre o ajuizamento e a descoberta, incluindo o atraso dos tribunais; Informativo; Com pedidos novos ou recentes\nDeduplicação: Quanto a base está livre de duplicidades apontadas; 99% ou mais; Com processos na base\nRastreabilidade: Alertas que têm fonte, evidência e versão da regra; 100%; Depois do primeiro alerta\nAs barras sob os cards mostram o percentual. Abaixo, o bloco Distribuição mostra quantos processos há por status, por tipo de evento e quantas revisões estão pendentes em cada fila.\nP50 é o valor do meio (metade dos casos fica abaixo dele) e P95 é o valor abaixo do qual ficam 95% dos casos."
+  },
+  {
+   "item": "12",
+   "titulo": "Preferências de alerta",
+   "secao": "12. Preferências de alerta",
+   "pagina": 18,
+   "texto": "Define quais alertas você recebe fora do painel e por qual canal. No painel, os alertas aparecem sempre. Sem nenhum canal preenchido, você não recebe nada fora do painel.\nCampo: Como preencher; Vazio significa\nTribunais: Siglas separadas por vírgula, por exemplo TJSP, TJRJ; Todos\nUFs: Siglas separadas por vírgula, por exemplo SP, RJ, MG; Todas\nEventos: Tipos separados por vírgula, por exemplo RJ_PEDIDO_NOVO, RJ_PROCESSAMENTO_DEFERIDO; Todos\nCanais: email, webhook, slack e/ou teams, separados por vírgula; Nenhum envio externo\nFrequência: Imediata ou Resumo diário; Imediata\nE-mail: Seu endereço, se usar o canal email\nWebhook: Endereço que recebe o alerta em JSON\nSlack: Endereço de incoming webhook do canal\nTeams: Endereço de incoming webhook do canal\nReceber alertas preventivos revisados: Marque para receber preventivos aprovados (só admin e analista); Não recebe\nClique em Salvar. Alertas de correção sempre chegam a quem recebeu o alerta original, mesmo fora do filtro de eventos.\nTipos de evento que podem ser filtrados: RJ_PEDIDO_NOVO, RJ_TUTELA_ANTECEDENTE, RJ_PROCESSAMENTO_DEFERIDO, RJ_PROCESSAMENTO_INDEFERIDO, RJ_PLANO_APRESENTADO, RJ_CONCEDIDA e RJ_FALENCIA.\nAviso: a opção Resumo diário ainda não envia e-mail; os alertas ficam guardados aguardando um envio que não está agendado. Use Imediata por enquanto."
+  },
+  {
+   "item": "13",
+   "titulo": "Usuários",
+   "secao": "13. Usuários",
+   "pagina": 19,
+   "texto": "Tela exclusiva do administrador para incluir, excluir e gerar senhas. Toda alteração fica na auditoria."
+  },
+  {
+   "item": "13.1",
+   "titulo": "Incluir usuário",
+   "secao": "13. Usuários",
+   "pagina": 19,
+   "texto": "Campo: Como preencher\nNome: Nome completo da pessoa\nLogin: De 3 a 60 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado. Sugestão: nome.sobrenome\nPerfil: Administrador, Analista, Comercial ou Leitor (padrão: Leitor)\nSenha: Deixe vazio para o sistema gerar uma senha de 12 caracteres, ou digite uma com pelo menos 8\nClique em Incluir usuário. A senha aparece uma única vez num quadro, com o botão Copiar senha. Envie-a à pessoa por um canal seguro."
+  },
+  {
+   "item": "13.2",
+   "titulo": "Usuários cadastrados",
+   "secao": "13. Usuários",
+   "pagina": 19,
+   "texto": "Cada usuário aparece com nome, login, perfil e a data de cadastro, e dois botões:\nGerar nova senha: pede confirmação, cria uma senha nova e a mostra uma vez. A senha anterior deixa de funcionar e a pessoa é desconectada na hora.\nExcluir: pede confirmação e remove o usuário e suas preferências. A ação não pode ser desfeita. Não aparece para o seu próprio usuário.\nRegras: não é possível excluir a si mesmo nem o último administrador. Para trocar o perfil de alguém, exclua e inclua de novo com o perfil certo."
+  },
+  {
+   "item": "14.1",
+   "titulo": "Glossário",
+   "secao": "14. Glossário e perguntas frequentes",
+   "pagina": 20,
+   "texto": "Termo: Significado\nRJ: Recuperação judicial (Lei 11.101/2005)\nNúmero CNJ: Número único do processo no padrão NNNNNNN-DD.AAAA.J.TR.OOOO\nDataJud: Base pública do CNJ com os dados dos processos de todo o país; não traz partes\nDJEN: Diário de Justiça Eletrônico Nacional: publicações oficiais, com partes e advogados\nTPU: Tabelas Processuais Unificadas do CNJ: códigos de classes, assuntos e movimentos\nClasse 129: Código da classe Recuperação Judicial\nAjuizamento: Data em que o pedido foi protocolado\nDescoberta: Data em que o Antevê encontrou o processo\nEstágio: Momento do processo: distribuído, deferido, concedido, encerrado etc.\nPolo ativo / passivo: Quem pede (requerente) e contra quem se pede (requerido)\nEvidência: Prova que sustenta uma informação, com fonte e link; nível A (mais forte) a D (mais fraca)\nConfiança: Percentual que indica o quanto a classificação está apoiada em fonte oficial\nContato bloqueado: A empresa ainda não pode ser abordada comercialmente\nOpt out: Pedido da empresa para não ser contatada\nScore preventivo: Pontuação de 0 a 100 de sinais de risco; não confirma RJ"
+  },
+  {
+   "item": "14.2",
+   "titulo": "Perguntas frequentes",
+   "secao": "14. Glossário e perguntas frequentes",
+   "pagina": 20,
+   "texto": "Por que quase todos os processos mostram \"CNPJ pendente\" e \"contato bloqueado\"? O DataJud não informa partes nem CNPJ. A identidade vem do DJEN ou do vínculo manual pelo analista (seção 5.3).\nBusquei uma empresa pelo CNPJ e não achei. Ela não está em RJ? Não dá para concluir isso. A busca por CNPJ só encontra processos com empresa já vinculada. Tente pelo número do processo ou pelo nome da parte. Além disso, a base cobre pedidos ajuizados nos últimos 12 meses.\nUm pedido novo demora quanto para aparecer? O sistema consulta a fonte a cada 10 minutos, mas os tribunais levam em média cerca de 24 dias para enviar o processo ao DataJud.\nQual a diferença entre Provisório e Confirmado? Confirmado tem fonte oficial sem divergência. Provisório tem alguma dúvida, como assunto divergente ou distribuição por dependência, e precisa de revisão antes de qualquer oferta.\nPosso divulgar a lista do Preventivo? Não. O score é de uso interno, não é exportado e nunca pode ser publicado como lista.\nUm processo está classificado errado. O que faço? Abra o detalhe e use o bloco Correção. O caso vai para a Revisão humana.\nUma empresa pediu para não ser contatada. Registre o opt out com o administrador. Hoje o registro é feito pela equipe técnica, porque ainda não há botão no painel.\nA tela voltou para o login sozinha. A sessão dura 12 horas e é encerrada se sua senha for trocada. Entre de novo."
+  }
+ ]
+}

@@ -19,6 +19,7 @@ from .connectors.base import FonteIndisponivel
 from .db import DB, PAPEIS
 from .normalize import agora, chave_texto, cnj_formatar, cnpj_formatar, cnpj_limpar, cnpj_valido, iso, parse_data
 from . import notifier
+from . import manual as manual_mod
 
 db = DB(CONFIG.db_path)
 app = FastAPI(title="Antevê", version="1.0.0", description="Radar de recuperações judiciais")
@@ -557,6 +558,37 @@ def buscar_diario(u=Depends(exige("administrar"))):
     orcamento = int(os.environ.get("ANTEVE_ORCAMENTO_S", "45"))
     db.auditar(u["login"], "diario.executar", "sistema", None)
     return orchestrator.enriquecer_com_diario(db, limite=200, prazo=time.time() + orcamento)
+
+
+# ------------------------------------------------------------ manual do usuário
+@app.get("/api/manual")
+def manual_indice(u=Depends(exige("ler"))):
+    return {"documento": manual_mod.indice()["documento"], "secoes": manual_mod.secoes(),
+            "itens": [{k: i[k] for k in ("item", "titulo", "secao", "pagina")} for i in manual_mod.indice()["itens"]],
+            "ia": bool(CONFIG.anthropic_api_key)}
+
+
+@app.get("/api/manual/arquivo/{formato}")
+def manual_arquivo(formato: str, u=Depends(exige("ler"))):
+    if formato not in manual_mod.ARQUIVOS:
+        raise HTTPException(404, "formato indisponível")
+    nome, tipo = manual_mod.ARQUIVOS[formato]
+    return FileResponse(os.path.join(manual_mod.PASTA, nome), media_type=tipo, filename=nome)
+
+
+class Duvida(BaseModel):
+    pergunta: str = ""
+    secao: str | None = None
+
+
+@app.post("/api/manual/perguntar")
+def manual_perguntar(body: Duvida, u=Depends(exige("ler"))):
+    if len(body.pergunta) > 600:
+        raise HTTPException(422, "descreva a dúvida em até 600 caracteres")
+    if body.secao and body.secao not in manual_mod.secoes():
+        raise HTTPException(422, "seção inexistente")
+    db.auditar(u["login"], "manual.perguntar", "manual", None, {"pergunta": body.pergunta[:200], "secao": body.secao})
+    return manual_mod.responder(body.pergunta, body.secao)
 
 
 @app.post("/api/tpu/sincronizar")
