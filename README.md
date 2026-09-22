@@ -65,6 +65,8 @@ Crie o repositório como **privado**. A aba Actions mostrará o workflow Testes 
 2. Em Settings > Environment Variables, configure:
    * `DATABASE_URL`: URL do pooler.
    * `CRON_SECRET`: um valor longo e aleatório, por exemplo gerado com `openssl rand -hex 32`.
+   * `ANTEVE_TOKEN_ADMIN`: outro valor aleatório. Ele vira o token do administrador, criado na primeira execução. É esse valor que se digita na tela de login.
+   * `ANTEVE_IPS_PERMITIDOS`: IPs autorizados, separados por vírgula. O padrão já traz os IPs da SBK (186.193.236.194 e 179.191.112.34).
    * Opcionais: `ANTHROPIC_API_KEY` e as variáveis de SMTP.
 3. Faça o deploy e confira `https://<projeto>.vercel.app/api/saude`. A resposta deve mostrar `"banco": "postgresql"` e `"persistente": true`.
 
@@ -103,6 +105,10 @@ No plano Pro do Vercel, também é possível trocar o workflow do GitHub por um 
 * **Limites do plano Hobby:** ele aceita apenas Cron diário, por isso a coleta frequente vem do GitHub Actions.
 * **Prazo por execução:** `ANTEVE_ORCAMENTO_S` (padrão 45) controla quanto tempo cada chamada trabalha antes de parar com segurança. `ANTEVE_PARALELO` (padrão 6) controla quantos tribunais entram em cada lote.
 * **Agendador interno:** fica desligado automaticamente no Vercel. Em servidor próprio ou Docker, ele continua funcionando como antes.
+
+## Restrição de acesso
+
+O painel e a API só respondem aos IPs de `ANTEVE_IPS_PERMITIDOS`. Qualquer outro endereço recebe 403 antes mesmo da tela de login. As rotas `/api/cron/*` ficam fora da restrição porque são chamadas pelo Vercel Cron e pelo GitHub Actions, e continuam protegidas pelo `CRON_SECRET`. No Vercel, o IP é lido do `X-Forwarded-For`, que a plataforma sobrescreve. Em servidor próprio atrás de proxy, defina `ANTEVE_CONFIAR_PROXY=1`.
 
 ## Perfis de acesso
 

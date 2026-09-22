@@ -30,6 +30,14 @@ class Config:
     db_path: str = (os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or _env(
         "ANTEVE_DB", "/tmp/anteve.db" if os.environ.get("VERCEL") else os.path.join(os.path.dirname(__file__), "..", "data", "anteve.db")))
     cron_secret: str = _env("CRON_SECRET", "")
+    # Acesso: só estes IPs chegam ao painel e à API (vazio desativa). /api/cron/* fica de fora,
+    # protegido pelo CRON_SECRET, porque é chamado pelo Vercel Cron e pelo GitHub Actions.
+    ips_permitidos: list = field(default_factory=lambda: [
+        v.strip() for v in _env("ANTEVE_IPS_PERMITIDOS", "186.193.236.194,179.191.112.34").split(",") if v.strip()])
+    # Atrás de proxy (Vercel), o IP do cliente vem do X-Forwarded-For. Fora dele, da conexão.
+    confiar_proxy: bool = _env("ANTEVE_CONFIAR_PROXY", "1" if os.environ.get("VERCEL") else "0") == "1"
+    # Token do administrador inicial: se definido, o usuário é criado na primeira execução.
+    token_admin: str = _env("ANTEVE_TOKEN_ADMIN", "")
     # DataJud: a chave pública é divulgada pelo CNJ e pode mudar a qualquer momento.
     datajud_url: str = _env("DATAJUD_URL", "https://api-publica.datajud.cnj.jus.br")
     datajud_api_key: str = _env("DATAJUD_API_KEY", "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==")

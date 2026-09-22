@@ -232,10 +232,10 @@ class DB:
                    self.dump(detalhe or {})))
 
     # usuários --------------------------------------------------------
-    def criar_usuario(self, nome, papel):
+    def criar_usuario(self, nome, papel, token=None):
         if papel not in PAPEIS:
             raise ValueError("papel inválido")
-        token = "ant_" + secrets.token_urlsafe(24)
+        token = token or "ant_" + secrets.token_urlsafe(24)
         self.exec("INSERT INTO usuarios(nome,papel,token_hash,criado_em) VALUES(?,?,?,?)",
                   (nome, papel, hash_token(token), iso(agora())))
         self.auditar("sistema", "usuario.criar", "usuario", nome, {"papel": papel})

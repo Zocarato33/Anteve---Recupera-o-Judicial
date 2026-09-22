@@ -6,7 +6,7 @@ import os
 import statistics
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import orchestrator, pipeline, scoring, tpu as tpu_mod
@@ -20,6 +20,28 @@ from . import notifier
 db = DB(CONFIG.db_path)
 app = FastAPI(title="Antevê", version="1.0.0", description="Radar de recuperações judiciais")
 _agendador = None
+
+if CONFIG.token_admin and not db.usuario_por_token(CONFIG.token_admin):
+    db.criar_usuario("Administrador", "admin", CONFIG.token_admin)
+
+_IPS_LOCAIS = {"127.0.0.1", "::1"}
+
+
+def ip_cliente(request: Request):
+    if CONFIG.confiar_proxy:
+        encaminhado = request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip")
+        if encaminhado:
+            return encaminhado.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+@app.middleware("http")
+async def restringir_ip(request: Request, chamar):
+    if CONFIG.ips_permitidos and not request.url.path.startswith("/api/cron/"):
+        ip = ip_cliente(request)
+        if ip not in CONFIG.ips_permitidos and ip not in _IPS_LOCAIS:
+            return JSONResponse({"detail": "acesso restrito à rede SBK"}, status_code=403)
+    return await chamar(request)
 
 
 def usuario(x_token: str = Header(default=None)):
