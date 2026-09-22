@@ -116,6 +116,16 @@ tbody tr:hover{background:rgba(42,124,121,.07)}
 .formulario label{font-size:13px;color:var(--texto2);display:grid;gap:4px}
 .fechar{float:right}
 .vazio{padding:40px 20px;text-align:center;color:var(--texto2)}
+/* lista: título, indicadores e filtros fixos; a rolagem fica só dentro da tabela */
+.tabela-wrap thead th{position:sticky;top:0;background:var(--superficie);z-index:1;box-shadow:0 1px 0 var(--linha)}
+.contagem-lista{font-size:12.5px;color:var(--texto2);margin:-6px 0 8px}
+@media (min-width:821px){
+  #raiz{height:100%}
+  .app{grid-template-rows:minmax(0,1fr)}
+  main.fixo{display:flex;flex-direction:column;overflow:hidden;padding-bottom:20px}
+  main.fixo>*{flex-shrink:0}
+  main.fixo>.tabela-wrap{flex:1 1 auto;min-height:0;overflow:auto}
+}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .kpi{background:var(--superficie);border:1px solid var(--linha);border-radius:12px;padding:16px}
 .kpi .v{font-size:28px;font-weight:600}
@@ -288,18 +298,23 @@ async function vistaLista(camada){
       <select id="fidade" aria-label="Idade"><option value="">Qualquer idade</option>${Object.entries(IDADE).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>
       <select id="fprio" aria-label="Prioridade"><option value="">Qualquer prioridade</option>${Object.entries(PRIO).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>
       <select id="fuf" aria-label="UF"><option value="">Todas as UFs</option>${"AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" ").map(u=>`<option>${u}</option>`).join("")}</select>
-     </div><div class="tabela-wrap"><div class="vazio">Carregando</div></div>`;
+     </div><div class="contagem-lista" id="clista"></div><div class="tabela-wrap"><div class="vazio">Carregando</div></div>`;
+  main.classList.add("fixo");
   for(const [id,k] of [["fstatus","status"],["fidade","idade"],["fprio","prioridade"],["fuf","uf"]]){ $("#"+id).value=f[k]; $("#"+id).onchange=e=>{f[k]=e.target.value;carregar();}; }
   let tq; $("#fq").oninput=e=>{clearTimeout(tq);tq=setTimeout(()=>{f.q=e.target.value;carregar();},300)};
   if($("#exp")) $("#exp").onclick=exportar;
   async function carregar(){
     const qs=new URLSearchParams({camada,...Object.fromEntries(Object.entries(f).filter(([,v])=>v))});
     let l; try{l=await api("/api/processos?"+qs);}catch(e){$(".tabela-wrap").innerHTML=`<div class="vazio">${esc(e.message)}</div>`;return;}
-    const cnt=s=>l.filter(p=>s.includes(p.status)).length;
+    // Totais da base inteira; a lista carrega no máximo 300 linhas
+    let c=null; if(!SNAP){ try{c=await api("/api/processos/contagem?"+qs);}catch(e){} }
+    if(!c){ const ps={}; l.forEach(p=>ps[p.status]=(ps[p.status]||0)+1); c={total:l.length,por_status:ps,contato_liberado:l.filter(p=>!p.contato_bloqueado).length}; }
+    const cnt=s=>s.reduce((a,k)=>a+(c.por_status[k]||0),0);
+    $("#clista").textContent=c.total>l.length?`Exibindo ${l.length} de ${c.total} processos. Use os filtros ou a busca para refinar.`:`${c.total} processo${c.total===1?"":"s"}`;
     $("#camadas").innerHTML=[["Confirmados ativos",cnt(["CONFIRMADO","ATUALIZADO"]),"pedido validado em fonte oficial"],
       ["Provisórios",cnt(["PROVISORIO","CANDIDATO"]),"divergência ou confirmação insuficiente"],
       ["Encerrados",cnt(["ENCERRADO"]),"indeferidos, cancelados, desistências"],
-      ["Contato liberado",l.filter(p=>!p.contato_bloqueado).length,"CNPJ verificado e sem pendência"]]
+      ["Contato liberado",c.contato_liberado,"CNPJ verificado e sem pendência"]]
       .map(([r,n,d])=>`<div class="camada"><div class="r">${r}</div><div class="n">${n}</div><div class="r">${d}</div></div>`).join("");
     const w=$(".tabela-wrap");
     if(!l.length){w.innerHTML=`<div class="vazio">Nenhum registro com estes filtros.</div>`;return;}
