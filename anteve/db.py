@@ -1,13 +1,15 @@
 """Persistência (SQLite em modo WAL). O esquema segue a seção 6.1 da especificação.
 Para produção com múltiplas instâncias, o mesmo esquema pode ser portado para PostgreSQL."""
+import base64
 import hashlib
+import hmac
 import json
 import os
 import re
 import secrets
 import sqlite3
 import threading
-from datetime import timedelta
+import time
 
 from .normalize import agora, iso
 
@@ -86,8 +88,6 @@ CREATE TABLE IF NOT EXISTS amostra_controle(
   numero_cnj TEXT PRIMARY KEY, origem TEXT, incluido_em TEXT);
 CREATE TABLE IF NOT EXISTS usuarios(
   id INTEGER PRIMARY KEY, nome TEXT, papel TEXT, token_hash TEXT UNIQUE, ativo INTEGER DEFAULT 1, criado_em TEXT);
-CREATE TABLE IF NOT EXISTS sessoes(
-  id INTEGER PRIMARY KEY, usuario_id INTEGER, token_hash TEXT UNIQUE, criado_em TEXT, expira_em TEXT);
 CREATE TABLE IF NOT EXISTS estado(
   chave TEXT PRIMARY KEY, valor TEXT);
 CREATE TABLE IF NOT EXISTS preferencias(
@@ -198,15 +198,15 @@ class DB:
             self._migrar()
 
     def _migrar(self):
-        """Colunas acrescentadas depois da versão 1.0: login e senha dos usuários."""
+        """Colunas acrescentadas depois da versão 1.0: login, senha e versão de sessão dos usuários."""
         if self.pg:
             existentes = {r["column_name"] for r in self.todos(
                 "SELECT column_name FROM information_schema.columns WHERE table_name='usuarios'")}
         else:
             existentes = {r["name"] for r in self.todos("PRAGMA table_info(usuarios)")}
-        for coluna in ("login", "senha_hash"):
+        for coluna, tipo in (("login", "TEXT"), ("senha_hash", "TEXT"), ("sessao_versao", "INTEGER DEFAULT 0")):
             if coluna not in existentes:
-                self.exec(f"ALTER TABLE usuarios ADD COLUMN {coluna} TEXT")
+                self.exec(f"ALTER TABLE usuarios ADD COLUMN {coluna} {tipo}")
         self.exec("CREATE UNIQUE INDEX IF NOT EXISTS usuarios_login ON usuarios(login)")
 
     # utilidades -------------------------------------------------------
@@ -275,29 +275,41 @@ class DB:
         self.auditar("sistema", "usuario.criar", "usuario", login, {"papel": papel})
 
     def definir_senha(self, login, senha):
-        self.exec("UPDATE usuarios SET senha_hash=? WHERE login=?", (hash_senha(senha), login.strip().lower()))
+        """Troca a senha e invalida as sessões abertas com a senha anterior."""
+        self.exec("UPDATE usuarios SET senha_hash=?, sessao_versao=COALESCE(sessao_versao,0)+1 WHERE login=?",
+                  (hash_senha(senha), login.strip().lower()))
         self.auditar("sistema", "usuario.senha", "usuario", login)
+
+    def excluir_usuario(self, usuario_id):
+        with self.transacao():
+            self.exec("DELETE FROM preferencias WHERE usuario_id=?", (usuario_id,))
+            self.exec("DELETE FROM usuarios WHERE id=?", (usuario_id,))
 
     def autenticar(self, login, senha):
         u = self.um("SELECT * FROM usuarios WHERE login=? AND ativo=1", ((login or "").strip().lower(),))
         return u if u and senha_confere(senha or "", u["senha_hash"]) else None
 
-    def abrir_sessao(self, usuario_id, horas):
-        token = secrets.token_urlsafe(32)
-        self.exec("INSERT INTO sessoes(usuario_id,token_hash,criado_em,expira_em) VALUES(?,?,?,?)",
-                  (usuario_id, hash_token(token), iso(agora()), iso(agora() + timedelta(hours=horas))))
-        return token
+    # Sessão assinada (HMAC), sem estado no banco: vale em qualquer instância do Vercel. A versão de
+    # sessão do usuário entra na assinatura, então trocar a senha ou excluir o usuário encerra a sessão.
+    @staticmethod
+    def abrir_sessao(usuario, segredo, horas):
+        corpo = base64.urlsafe_b64encode(json.dumps(
+            {"l": usuario["login"], "v": usuario.get("sessao_versao") or 0, "e": int(time.time() + horas * 3600)},
+            separators=(",", ":")).encode()).decode().rstrip("=")
+        return corpo + "." + hmac.new(segredo.encode(), corpo.encode(), "sha256").hexdigest()
 
-    def encerrar_sessao(self, token):
-        if token:
-            self.exec("DELETE FROM sessoes WHERE token_hash=?", (hash_token(token),))
-
-    def usuario_por_token(self, token):
-        """Usuário dono de uma sessão aberta pelo login e ainda válida."""
-        if not token:
+    def usuario_por_token(self, token, segredo):
+        try:
+            corpo, assinatura = (token or "").split(".")
+            if not hmac.compare_digest(assinatura, hmac.new(segredo.encode(), corpo.encode(), "sha256").hexdigest()):
+                return None
+            dados = json.loads(base64.urlsafe_b64decode(corpo + "=" * (-len(corpo) % 4)))
+        except (ValueError, TypeError):
             return None
-        return self.um("SELECT u.* FROM sessoes s JOIN usuarios u ON u.id=s.usuario_id "
-                       "WHERE s.token_hash=? AND s.expira_em>? AND u.ativo=1", (hash_token(token), iso(agora())))
+        if dados.get("e", 0) < time.time():
+            return None
+        u = self.um("SELECT * FROM usuarios WHERE login=? AND ativo=1", (dados.get("l"),))
+        return u if u and (u.get("sessao_versao") or 0) == dados.get("v") else None
 
 
 class _Transacao:

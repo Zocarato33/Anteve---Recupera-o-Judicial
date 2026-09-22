@@ -2,7 +2,10 @@
 exportação ficam registradas na auditoria."""
 import csv
 import io
+import math
 import os
+import re
+import secrets
 import statistics
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -56,9 +59,9 @@ async def restringir_ip(request: Request, chamar):
 
 
 def usuario(x_token: str = Header(default=None)):
-    u = db.usuario_por_token(x_token)
+    u = db.usuario_por_token(x_token, CONFIG.segredo_sessao)
     if not u:
-        raise HTTPException(401, "token ausente ou inválido")
+        raise HTTPException(401, "sessão ausente ou expirada")
     return u
 
 
@@ -109,18 +112,91 @@ def login(body: Credenciais, request: Request):
         db.auditar(body.login, "login.falha", "usuario", body.login, {"ip": ip_cliente(request)})
         raise HTTPException(401, "usuário ou senha inválidos")
     db.auditar(u["login"], "login", "usuario", u["login"], {"ip": ip_cliente(request)})
-    return {"token": db.abrir_sessao(u["id"], CONFIG.sessao_horas), "nome": u["nome"], "papel": u["papel"]}
+    return {"token": db.abrir_sessao(u, CONFIG.segredo_sessao, CONFIG.sessao_horas), "nome": u["nome"], "papel": u["papel"]}
 
 
-@app.post("/api/logout")
-def logout(x_token: str = Header(default=None)):
-    db.encerrar_sessao(x_token)
+# ------------------------------------------------------------ usuários
+_RE_LOGIN = re.compile(r"^[a-z0-9._-]{3,60}$")
+_ALFABETO_SENHA = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def gerar_senha(n=12):
+    return "".join(secrets.choice(_ALFABETO_SENHA) for _ in range(n))
+
+
+def _senha_ou_gerada(senha):
+    if senha:
+        if len(senha) < 8:
+            raise HTTPException(422, "a senha precisa ter pelo menos 8 caracteres")
+        return senha
+    return gerar_senha()
+
+
+class NovoUsuario(BaseModel):
+    nome: str
+    login: str
+    papel: str = "leitor"
+    senha: str | None = None
+
+
+class NovaSenha(BaseModel):
+    senha: str | None = None
+
+
+@app.get("/api/usuarios")
+def listar_usuarios(u=Depends(exige("administrar"))):
+    return db.todos("SELECT id, nome, login, papel, ativo, criado_em FROM usuarios WHERE login IS NOT NULL ORDER BY nome")
+
+
+@app.post("/api/usuarios")
+def incluir_usuario(body: NovoUsuario, u=Depends(exige("administrar"))):
+    login_novo = body.login.strip().lower()
+    if not _RE_LOGIN.match(login_novo):
+        raise HTTPException(422, "login deve ter de 3 a 60 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado")
+    if body.papel not in PAPEIS:
+        raise HTTPException(422, "perfil inválido")
+    if not body.nome.strip():
+        raise HTTPException(422, "informe o nome")
+    if db.um("SELECT id FROM usuarios WHERE login=?", (login_novo,)):
+        raise HTTPException(409, "já existe um usuário com esse login")
+    senha = _senha_ou_gerada(body.senha)
+    db.criar_usuario(body.nome.strip(), login_novo, senha, body.papel)
+    db.auditar(u["login"], "usuario.incluir", "usuario", login_novo, {"papel": body.papel})
+    return {"login": login_novo, "senha": senha}
+
+
+def _usuario_alvo(usuario_id):
+    alvo = db.um("SELECT * FROM usuarios WHERE id=? AND login IS NOT NULL", (usuario_id,))
+    if not alvo:
+        raise HTTPException(404, "usuário não encontrado")
+    return alvo
+
+
+@app.post("/api/usuarios/{usuario_id}/senha")
+def redefinir_senha(usuario_id: int, body: NovaSenha, u=Depends(exige("administrar"))):
+    alvo = _usuario_alvo(usuario_id)
+    senha = _senha_ou_gerada(body.senha)
+    db.definir_senha(alvo["login"], senha)
+    db.auditar(u["login"], "usuario.redefinir_senha", "usuario", alvo["login"])
+    return {"login": alvo["login"], "senha": senha}
+
+
+@app.delete("/api/usuarios/{usuario_id}")
+def excluir_usuario(usuario_id: int, u=Depends(exige("administrar"))):
+    alvo = _usuario_alvo(usuario_id)
+    if alvo["id"] == u["id"]:
+        raise HTTPException(409, "você não pode excluir o próprio usuário")
+    if alvo["papel"] == "admin" and db.um(
+            "SELECT COUNT(*) AS n FROM usuarios WHERE papel='admin' AND ativo=1 AND login IS NOT NULL")["n"] <= 1:
+        raise HTTPException(409, "é preciso manter pelo menos um administrador")
+    db.excluir_usuario(alvo["id"])
+    db.auditar(u["login"], "usuario.excluir", "usuario", alvo["login"])
     return {"ok": True}
 
 
 @app.get("/api/eu")
 def eu(u=Depends(usuario)):
-    return {"nome": u["nome"], "papel": u["papel"], "permissoes": sorted(PAPEIS[u["papel"]])}
+    return {"nome": u["nome"], "login": u["login"], "papel": u["papel"], "permissoes": sorted(PAPEIS[u["papel"]])}
 
 
 @app.get("/api/processos")
@@ -416,11 +492,15 @@ class Coleta(BaseModel):
 
 @app.post("/api/coleta")
 def coletar(body: Coleta, u=Depends(exige("administrar"))):
-    trib = [t.lower() for t in (body.tribunais or CONFIG.tribunais)]
-    db.auditar(u["nome"], "coleta.executar", "sistema", None, body.model_dump())
-    if body.modo == "incremental":
-        return orchestrator.ciclo(db, trib)
-    return [orchestrator.coletar_tribunal(db, t, modo="reconciliacao", dias=body.dias) for t in trib]
+    """Processa um lote de tribunais dentro do prazo de uma função (Vercel). O painel chama em
+    sequência até percorrer todos; cada chamada continua de onde a anterior parou."""
+    db.auditar(u["login"], "coleta.executar", "sistema", None, body.model_dump())
+    modo = "incremental" if body.modo == "incremental" else "reconciliacao"
+    orcamento = int(os.environ.get("ANTEVE_ORCAMENTO_S", "45"))
+    r = orchestrator.executar_com_orcamento(db, modo, dias=min(body.dias or 30, 365) if modo == "reconciliacao" else None,
+                                            orcamento_s=orcamento)
+    paralelo = int(os.environ.get("ANTEVE_PARALELO", "6"))
+    return dict(r, total_tribunais=len(CONFIG.tribunais), lotes=math.ceil(len(CONFIG.tribunais) / paralelo))
 
 
 @app.post("/api/tpu/sincronizar")

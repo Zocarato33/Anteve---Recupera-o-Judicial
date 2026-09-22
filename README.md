@@ -79,7 +79,7 @@ python -m anteve.cli tpu
 python -m anteve.cli reconciliar --dias 365
 ```
 
-A reconciliação de 12 meses leva alguns minutos. Ela é feita pela linha de comando porque não cabe no limite de 60 segundos de uma função.
+Sem essa carga, o botão **Executar coleta agora** (tela Fontes e saúde) já traz os últimos 30 dias: ele percorre os 27 TJs em lotes de 6, cada um dentro do limite de uma função do Vercel. A reconciliação de 12 meses leva alguns minutos. Ela é feita pela linha de comando porque não cabe no limite de 60 segundos de uma função.
 
 Para ativar o acesso ao DJEN já na carga inicial, execute a partir de uma máquina no Brasil. Depois disso, o próprio Vercel em `gru1` completa as publicações a cada ciclo.
 
@@ -116,11 +116,11 @@ O painel e a API só respondem aos IPs de `ANTEVE_IPS_PERMITIDOS`. Qualquer outr
 | comercial | ler e operar o funil de oportunidades |
 | leitor | apenas consultar |
 
-Crie usuários com `python -m anteve.cli iniciar --nome "Nome" --login nome.sobrenome --senha "..." --papel analista`.
+Os usuários são administrados na tela **Usuários**, visível só para o perfil admin. Lá é possível incluir um usuário (com senha digitada ou gerada automaticamente), gerar uma nova senha e excluir um usuário. A senha gerada aparece uma única vez. Trocar a senha ou excluir o usuário encerra na hora as sessões abertas. Não é possível excluir o próprio usuário nem o último administrador. Pela linha de comando: `python -m anteve.cli iniciar --nome "Nome" --login nome.sobrenome --senha "..." --papel analista`.
 
 ## Login e senha
 
-O acesso é por usuário e senha. Na primeira execução o sistema cria o administrador definido em `ANTEVE_ADMIN_LOGIN` (padrão `joao.zocarato`) com a senha inicial `1234`. Troque essa senha definindo `ANTEVE_ADMIN_SENHA` no Vercel e fazendo um novo deploy. Senhas são guardadas apenas como hash PBKDF2. Cada login abre uma sessão que expira em `ANTEVE_SESSAO_HORAS` (padrão 12). Tentativas de login, com acerto ou falha, ficam na auditoria com o IP de origem.
+O acesso é por usuário e senha. Na primeira execução o sistema cria o administrador definido em `ANTEVE_ADMIN_LOGIN` (padrão `joao.zocarato`) com a senha inicial `1234`. Troque essa senha definindo `ANTEVE_ADMIN_SENHA` no Vercel e fazendo um novo deploy. Senhas são guardadas apenas como hash PBKDF2. Cada login abre uma sessão assinada, que vale em qualquer instância do Vercel e expira em `ANTEVE_SESSAO_HORAS` (padrão 12). A chave de assinatura vem de `ANTEVE_SEGREDO`; na falta dela, do `CRON_SECRET` ou da URL do banco. Se `ANTEVE_ADMIN_SENHA` estiver definida, ela prevalece sobre uma senha do administrador gerada pela tela a cada novo deploy. Tentativas de login, com acerto ou falha, ficam na auditoria com o IP de origem.
 
 ## Rotina automática
 

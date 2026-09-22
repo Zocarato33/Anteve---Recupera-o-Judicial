@@ -203,7 +203,7 @@ function snapApi(caminho, opts){
 
 /* ---------- estrutura ---------- */
 const VISOES = [["painel","Novas recuperações"],["outros","Falência e extrajudicial"],["revisao","Revisão humana"],["preventivo","Preventivo"],
-  ["alertas","Alertas"],["fontes","Fontes e saúde"],["metricas","Métricas"],["preferencias","Preferências"]];
+  ["alertas","Alertas"],["fontes","Fontes e saúde"],["metricas","Métricas"],["preferencias","Preferências"],["usuarios","Usuários"]];
 const MARCA = `<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="2" y="7" width="17" height="21" rx="4" fill="#2A7C79" opacity=".75"/><rect x="11" y="2" width="17" height="21" rx="4" fill="#ECEFF3"/></svg>`;
 
 function render(){
@@ -222,11 +222,11 @@ function render(){
   }
   raiz.innerHTML=`<div class="app"><nav class="lateral" aria-label="Seções">
     <div class="marca">${MARCA}<span class="nome">Antevê</span><span class="pill">IA</span></div>
-    ${VISOES.filter(([v])=>!(v==="preventivo"&&!pode("preventivo"))&&!(v==="revisao"&&!pode("revisar"))).map(([v,n])=>`<button data-v="${v}" ${VIEW===v?'aria-current="page"':""}><span>${n}</span><span class="cont" id="c-${v}"></span></button>`).join("")}
+    ${VISOES.filter(([v])=>!(v==="preventivo"&&!pode("preventivo"))&&!(v==="revisao"&&!pode("revisar"))&&!(v==="usuarios"&&(SNAP||!pode("administrar")))).map(([v,n])=>`<button data-v="${v}" ${VIEW===v?'aria-current="page"':""}><span>${n}</span><span class="cont" id="c-${v}"></span></button>`).join("")}
     <div class="nav-rodape">${SNAP?`Prévia gerada em ${dth(SNAP.gerado_em)}`:`${esc(EU.nome)} (${esc(EU.papel)})<br><button id="sair">Sair</button>`}</div>
   </nav><main id="main" tabindex="-1"></main></div>`;
   document.querySelectorAll("nav.lateral button[data-v]").forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
-  if($("#sair")) $("#sair").onclick=()=>{fetch("/api/logout",{method:"POST",headers:{"X-Token":TOKEN||""}}).catch(()=>{});guardar("anteve_token",null);TOKEN=null;EU=null;render();};
+  if($("#sair")) $("#sair").onclick=()=>{guardar("anteve_token",null);TOKEN=null;EU=null;render();};
   VISTAS[VIEW]();
   contadores();
 }
@@ -432,7 +432,19 @@ async function vistaFontes(){
     <h3 style="color:var(--destaque)">Dicionário TPU</h3><div class="item">Versão vigente <b>${esc(d.tpu.versao)}</b> <span class="fraco">hash ${esc((d.tpu.hash||"").slice(0,16))}</span></div>
     <h3 style="color:var(--destaque)">Cursores incrementais</h3>${d.cursores.length?d.cursores.map(c=>`<div class="item fraco">${esc(c.fonte)} ${esc(c.tribunal)} | até ${dth(c.cursor_ts)} | janela sobreposta de 72 h aplicada na próxima coleta</div>`).join(""):`<div class="fraco">Sem cursores.</div>`}
     <h3 style="color:var(--destaque)">Execuções recentes</h3>${d.execucoes.map(e=>`<div class="item fraco">${esc(e.tipo)} | ${dth(e.inicio)} até ${dth(e.fim)}</div>`).join("")||`<div class="fraco">Sem execuções.</div>`}`;
-  if($("#col")) $("#col").onclick=async()=>{toast("Coleta iniciada; pode levar alguns minutos");try{await api("/api/coleta",{method:"POST",body:"{}"});toast("Coleta concluída");vistaFontes();}catch(e){toast(e.message)}};
+  if($("#col")) $("#col").onclick=async()=>{
+    const b=$("#col"); b.disabled=true; let feitos=[], erros={}, lotes=1;
+    try{
+      for(let i=0;i<lotes;i++){
+        b.textContent=`Coletando lote ${i+1} de ${lotes}`;
+        const r=await api("/api/coleta",{method:"POST",body:JSON.stringify({modo:"incremental"})});
+        lotes=r.lotes||1; feitos=feitos.concat(r.tribunais_processados||[]); Object.assign(erros,r.erros||{});
+      }
+      const ne=Object.keys(erros).length;
+      toast(`Coleta concluída em ${feitos.length} tribunais${ne?`; ${ne} com erro (veja abaixo)`:""}`);
+    }catch(e){toast(e.message)}
+    vistaFontes();
+  };
   if($("#tpu")) $("#tpu").onclick=async()=>{try{const r=await api("/api/tpu/sincronizar",{method:"POST",body:"{}"});toast(`TPU ${r.versao}: ${r.conferidos} códigos conferidos`);vistaFontes();}catch(e){toast(e.message)}};
 }
 
@@ -477,7 +489,46 @@ async function vistaPreferencias(){
   $("#psalvar").onclick=async()=>{try{await api("/api/preferencias",{method:"POST",body:JSON.stringify({tribunais:$("#pt").value||null,ufs:$("#pu").value||null,eventos:$("#pe").value||null,canais:$("#pc").value||null,frequencia:$("#pf").value,email:$("#pm").value||null,webhook_url:$("#pw").value||null,slack_url:$("#ps").value||null,teams_url:$("#pte").value||null,incluir_preventivo:$("#pp")?$("#pp").checked:false})});toast("Preferências salvas");}catch(e){toast(e.message)}};
 }
 
-const VISTAS={painel:()=>vistaLista("rj"),outros:()=>vistaLista("outros"),revisao:vistaRevisao,preventivo:vistaPreventivo,alertas:vistaAlertas,fontes:vistaFontes,metricas:vistaMetricas,preferencias:vistaPreferencias};
+/* ---------- usuários ---------- */
+const PAPEL={admin:"Administrador",analista:"Analista",comercial:"Comercial",leitor:"Leitor"};
+function mostrarSenha(login, senha){
+  $("#ures").innerHTML=`<div class="item"><div class="t">Senha de ${esc(login)}</div>
+    <div style="font-size:18px;font-family:ui-monospace,monospace;margin:6px 0">${esc(senha)}</div>
+    <div class="fraco">Copie e envie ao usuário agora. Ela não será exibida novamente.</div>
+    <button class="btn sec" id="ucopiar" style="margin-top:8px">Copiar senha</button></div>`;
+  $("#ucopiar").onclick=()=>{navigator.clipboard.writeText(senha).then(()=>toast("Senha copiada"),()=>toast("Não foi possível copiar"));};
+}
+async function vistaUsuarios(){
+  const main=$("#main");
+  main.innerHTML=cab("Usuários","Inclua e exclua usuários e gere novas senhas. Toda alteração fica na auditoria.")+
+   `<div class="formulario" style="max-width:640px">
+    <label>Nome<input class="campo" id="unome" autocomplete="off"></label>
+    <label>Login<input class="campo" id="ulogin" autocomplete="off" autocapitalize="none" placeholder="nome.sobrenome"></label>
+    <label>Perfil<select class="campo" id="upapel">${Object.entries(PAPEL).map(([k,n])=>`<option value="${k}" ${k==="leitor"?"selected":""}>${n}</option>`).join("")}</select></label>
+    <label>Senha (deixe vazio para gerar automaticamente)<input class="campo" id="usenha" type="password" autocomplete="new-password"></label>
+    <button class="btn" id="uincluir">Incluir usuário</button></div>
+    <div id="ures" style="max-width:640px;margin-top:12px"></div>
+    <h3 style="color:var(--destaque)">Usuários cadastrados</h3><div id="ulista"><div class="vazio">Carregando</div></div>`;
+  $("#uincluir").onclick=async()=>{
+    try{const r=await api("/api/usuarios",{method:"POST",body:JSON.stringify({nome:$("#unome").value,login:$("#ulogin").value,papel:$("#upapel").value,senha:$("#usenha").value||null})});
+      ["#unome","#ulogin","#usenha"].forEach(s=>$(s).value=""); toast("Usuário incluído"); await listarUsuarios(); mostrarSenha(r.login,r.senha);}catch(e){toast(e.message)}};
+  listarUsuarios();
+}
+async function listarUsuarios(){
+  let l; try{l=await api("/api/usuarios");}catch(e){$("#ulista").innerHTML=`<div class="vazio">${esc(e.message)}</div>`;return;}
+  $("#ulista").innerHTML=l.map(x=>`<div class="item" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+    <div><div class="t">${esc(x.nome)}</div><div class="fraco">${esc(x.login)} | ${esc(PAPEL[x.papel]||x.papel)}${x.criado_em?" | desde "+dt(x.criado_em):""}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" data-senha="${x.id}" data-login="${esc(x.login)}">Gerar nova senha</button>
+    ${x.login===EU.login?"":`<button class="btn sec" data-excluir="${x.id}" data-login="${esc(x.login)}">Excluir</button>`}</div></div>`).join("")||`<div class="fraco">Nenhum usuário.</div>`;
+  document.querySelectorAll("[data-senha]").forEach(b=>b.onclick=async()=>{
+    if(!confirm(`Gerar nova senha para ${b.dataset.login}? A senha atual deixa de funcionar e as sessões abertas são encerradas.`)) return;
+    try{const r=await api(`/api/usuarios/${b.dataset.senha}/senha`,{method:"POST",body:"{}"}); mostrarSenha(r.login,r.senha);}catch(e){toast(e.message)}});
+  document.querySelectorAll("[data-excluir]").forEach(b=>b.onclick=async()=>{
+    if(!confirm(`Excluir o usuário ${b.dataset.login}? Esta ação não pode ser desfeita.`)) return;
+    try{await api(`/api/usuarios/${b.dataset.excluir}`,{method:"DELETE"}); toast("Usuário excluído"); $("#ures").innerHTML=""; listarUsuarios();}catch(e){toast(e.message)}});
+}
+
+const VISTAS={painel:()=>vistaLista("rj"),outros:()=>vistaLista("outros"),revisao:vistaRevisao,preventivo:vistaPreventivo,alertas:vistaAlertas,fontes:vistaFontes,metricas:vistaMetricas,preferencias:vistaPreferencias,usuarios:vistaUsuarios};
 
 (async function iniciar(){
   if(!SNAP){ try{SAUDE=await (await fetch("/api/saude")).json();}catch(e){} }
