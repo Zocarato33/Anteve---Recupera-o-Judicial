@@ -511,7 +511,7 @@ async function vistaUsuarios(){
     <h3 style="color:var(--destaque)">Usuários cadastrados</h3><div id="ulista"><div class="vazio">Carregando</div></div>`;
   $("#uincluir").onclick=async()=>{
     try{const r=await api("/api/usuarios",{method:"POST",body:JSON.stringify({nome:$("#unome").value,login:$("#ulogin").value,papel:$("#upapel").value,senha:$("#usenha").value||null})});
-      ["#unome","#ulogin","#usenha"].forEach(s=>$(s).value=""); toast("Usuário incluído"); await listarUsuarios(); mostrarSenha(r.login,r.senha);}catch(e){toast(e.message)}};
+      ["#unome","#ulogin","#usenha"].forEach(s=>$(s).value=""); $("#upapel").value="leitor"; toast("Usuário incluído"); await listarUsuarios(); mostrarSenha(r.login,r.senha);}catch(e){toast(e.message)}};
   listarUsuarios();
 }
 async function listarUsuarios(){
