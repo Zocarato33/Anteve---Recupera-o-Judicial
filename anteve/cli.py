@@ -1,6 +1,6 @@
 """Linha de comando do Antevê.
 
-  python -m anteve.cli iniciar --nome "Admin" --papel admin
+  python -m anteve.cli iniciar --nome "Maria" --login maria.silva --senha "..." --papel analista
   python -m anteve.cli coletar --tribunais tjsp,tjrj
   python -m anteve.cli reconciliar --dias 30
   python -m anteve.cli tpu
@@ -17,8 +17,10 @@ from .db import DB
 def main():
     ap = argparse.ArgumentParser(prog="anteve")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("iniciar", help="cria o banco e um usuário com token")
+    s = sub.add_parser("iniciar", help="cria o banco e um usuário com login e senha")
     s.add_argument("--nome", default="Administrador")
+    s.add_argument("--login", required=True)
+    s.add_argument("--senha", required=True)
     s.add_argument("--papel", default="admin", choices=["admin", "analista", "comercial", "leitor"])
     s = sub.add_parser("coletar", help="ciclo incremental (DataJud + diário)")
     s.add_argument("--tribunais", default=None)
@@ -38,8 +40,8 @@ def main():
     trib = [t.strip().lower() for t in a.tribunais.split(",")] if getattr(a, "tribunais", None) else CONFIG.tribunais
 
     if a.cmd == "iniciar":
-        token = db.criar_usuario(a.nome, a.papel)
-        print(f"Usuário {a.nome} ({a.papel}) criado. Guarde o token, ele não será exibido novamente:\n{token}")
+        db.criar_usuario(a.nome, a.login, a.senha, a.papel)
+        print(f"Usuário {a.login} ({a.papel}) criado.")
     elif a.cmd == "coletar":
         res = [orchestrator.coletar_tribunal(db, t, inicio_inicial_dias=a.dias_iniciais) for t in trib]
         res.append({"diario": orchestrator.enriquecer_com_diario(db)})

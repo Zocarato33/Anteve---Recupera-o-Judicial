@@ -21,8 +21,19 @@ db = DB(CONFIG.db_path)
 app = FastAPI(title="Antevê", version="1.0.0", description="Radar de recuperações judiciais")
 _agendador = None
 
-if CONFIG.token_admin and not db.usuario_por_token(CONFIG.token_admin):
-    db.criar_usuario("Administrador", "admin", CONFIG.token_admin)
+SENHA_ADMIN_PADRAO = "1234"
+
+
+def garantir_admin(banco):
+    if not CONFIG.admin_login:
+        return
+    if not banco.um("SELECT id FROM usuarios WHERE login=?", (CONFIG.admin_login.lower(),)):
+        banco.criar_usuario(CONFIG.admin_login, CONFIG.admin_login, CONFIG.admin_senha or SENHA_ADMIN_PADRAO, "admin")
+    elif CONFIG.admin_senha:
+        banco.definir_senha(CONFIG.admin_login, CONFIG.admin_senha)
+
+
+garantir_admin(db)
 
 _IPS_LOCAIS = {"127.0.0.1", "::1"}
 
@@ -84,6 +95,27 @@ def _proc_publico(p, detalhado=False):
 @app.get("/", include_in_schema=False)
 def painel():
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
+
+
+class Credenciais(BaseModel):
+    login: str
+    senha: str
+
+
+@app.post("/api/login")
+def login(body: Credenciais, request: Request):
+    u = db.autenticar(body.login, body.senha)
+    if not u:
+        db.auditar(body.login, "login.falha", "usuario", body.login, {"ip": ip_cliente(request)})
+        raise HTTPException(401, "usuário ou senha inválidos")
+    db.auditar(u["login"], "login", "usuario", u["login"], {"ip": ip_cliente(request)})
+    return {"token": db.abrir_sessao(u["id"], CONFIG.sessao_horas), "nome": u["nome"], "papel": u["papel"]}
+
+
+@app.post("/api/logout")
+def logout(x_token: str = Header(default=None)):
+    db.encerrar_sessao(x_token)
+    return {"ok": True}
 
 
 @app.get("/api/eu")
