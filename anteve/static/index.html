@@ -126,6 +126,13 @@ tbody tr:hover{background:rgba(42,124,121,.07)}
   main.fixo>*{flex-shrink:0}
   main.fixo>.tabela-wrap{flex:1 1 auto;min-height:0;overflow:auto}
 }
+.manual-busca textarea{width:100%;min-height:74px;resize:vertical;font:inherit}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+.chip{cursor:pointer;border:1px solid var(--linha);background:var(--superficie);color:var(--texto);border-radius:999px;padding:4px 12px;font-size:13px}
+.chip:hover{border-color:var(--verde)}
+.resposta-ia{border-left:3px solid var(--verde);background:var(--superficie);border-radius:10px;padding:14px 16px;margin:14px 0;white-space:pre-line}
+.cita{display:inline-block;font-size:12.5px;border:1px solid var(--linha);border-radius:6px;padding:2px 8px;margin:6px 6px 0 0}
+mark{background:rgba(42,124,121,.22);color:inherit;border-radius:3px;padding:0 1px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .kpi{background:var(--superficie);border:1px solid var(--linha);border-radius:12px;padding:16px}
 .kpi .v{font-size:28px;font-weight:600}
@@ -213,7 +220,7 @@ function snapApi(caminho, opts){
 
 /* ---------- estrutura ---------- */
 const VISOES = [["painel","Novas recuperações"],["outros","Falência e extrajudicial"],["revisao","Revisão humana"],["preventivo","Preventivo"],
-  ["alertas","Alertas"],["fontes","Fontes e saúde"],["metricas","Métricas"],["preferencias","Preferências"],["usuarios","Usuários"]];
+  ["alertas","Alertas"],["fontes","Fontes e saúde"],["metricas","Métricas"],["preferencias","Preferências"],["usuarios","Usuários"],["manual","Manual"]];
 const MARCA = `<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="2" y="7" width="17" height="21" rx="4" fill="#2A7C79" opacity=".75"/><rect x="11" y="2" width="17" height="21" rx="4" fill="#ECEFF3"/></svg>`;
 
 function render(){
@@ -232,7 +239,7 @@ function render(){
   }
   raiz.innerHTML=`<div class="app"><nav class="lateral" aria-label="Seções">
     <div class="marca">${MARCA}<span class="nome">Antevê</span><span class="pill">IA</span></div>
-    ${VISOES.filter(([v])=>!(v==="preventivo"&&!pode("preventivo"))&&!(v==="revisao"&&!pode("revisar"))&&!(v==="usuarios"&&(SNAP||!pode("administrar")))).map(([v,n])=>`<button data-v="${v}" ${VIEW===v?'aria-current="page"':""}><span>${n}</span><span class="cont" id="c-${v}"></span></button>`).join("")}
+    ${VISOES.filter(([v])=>!(v==="preventivo"&&!pode("preventivo"))&&!(v==="revisao"&&!pode("revisar"))&&!(v==="usuarios"&&(SNAP||!pode("administrar")))&&!(v==="manual"&&SNAP)).map(([v,n])=>`<button data-v="${v}" ${VIEW===v?'aria-current="page"':""}><span>${n}</span><span class="cont" id="c-${v}"></span></button>`).join("")}
     <div class="nav-rodape">${SNAP?`Prévia gerada em ${dth(SNAP.gerado_em)}`:`${esc(EU.nome)} (${esc(EU.papel)})<br><button id="sair">Sair</button>`}</div>
   </nav><main id="main" tabindex="-1"></main></div>`;
   document.querySelectorAll("nav.lateral button[data-v]").forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
@@ -584,7 +591,60 @@ async function listarUsuarios(){
     try{await api(`/api/usuarios/${b.dataset.excluir}`,{method:"DELETE"}); toast("Usuário excluído"); $("#ures").innerHTML=""; listarUsuarios();}catch(e){toast(e.message)}});
 }
 
-const VISTAS={painel:()=>vistaLista("rj"),outros:()=>vistaLista("outros"),revisao:vistaRevisao,preventivo:vistaPreventivo,alertas:vistaAlertas,fontes:vistaFontes,metricas:vistaMetricas,preferencias:vistaPreferencias,usuarios:vistaUsuarios};
+/* ---------- manual ---------- */
+const semAcento=s=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+function realcar(texto, termos){
+  const t=new Set(termos||[]);
+  return esc(texto).replace(/[\p{L}\p{N}]+/gu,w=>{const r=semAcento(w); return t.has(r.length>6?r.slice(0,6):r)?`<mark>${w}</mark>`:w;});
+}
+async function baixarManual(formato){
+  try{const r=await fetch(`/api/manual/arquivo/${formato}`,{headers:{"X-Token":TOKEN||""}}); if(!r.ok) throw new Error("download indisponível");
+    const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b);
+    a.download=formato==="pdf"?"Anteve_Manual_do_Usuario.pdf":"Anteve_Manual_do_Usuario.docx"; a.click();}catch(e){toast(e.message)}
+}
+const ATALHOS=[["Senha","esqueci minha senha"],["Vincular CNPJ","como vincular o CNPJ da empresa"],["Partes","como incluir partes do processo"],["Exportar","como exportar as recuperações confirmadas"],["Coleta","como executar a coleta de dados"],["Preventivo","o que é o score preventivo"],["Revisão","como decidir na revisão humana"],["Alertas","como receber alertas por e-mail"],["Usuários","como incluir um usuário"],["Status","o que significa provisório e confirmado"]];
+async function vistaManual(){
+  const main=$("#main");
+  main.innerHTML=cab("Manual do usuário","Baixe o manual ou descreva sua dúvida: o sistema procura a resposta dentro do documento e informa o item e a página.",
+    `<div class="filtros" style="margin:0"><button class="btn sec" id="mdocx">Baixar Word</button><button class="btn sec" id="mpdf">Baixar PDF</button></div>`)+
+   `<div class="formulario manual-busca" style="max-width:820px">
+     <label>Descreva sua dúvida<textarea class="campo" id="mq" maxlength="600" placeholder="Exemplo: como gero uma nova senha para um usuário?"></textarea></label>
+     <div class="filtros" style="margin:0"><select class="campo" id="msec" aria-label="Seção"><option value="">Todas as seções</option></select>
+       <button class="btn" id="mbuscar">Buscar resposta</button></div>
+     <div class="chips">${ATALHOS.map(([n,q])=>`<button class="chip" data-q="${esc(q)}">${esc(n)}</button>`).join("")}</div></div>
+   <div id="mres" style="max-width:820px"></div>
+   <h3 style="color:var(--destaque)">Sumário</h3><div id="msum" style="max-width:820px"><div class="vazio">Carregando</div></div>`;
+  $("#mdocx").onclick=()=>baixarManual("docx"); $("#mpdf").onclick=()=>baixarManual("pdf");
+  let idx; try{idx=await api("/api/manual");}catch(e){$("#msum").innerHTML=`<div class="vazio">${esc(e.message)}</div>`;return;}
+  $("#msec").innerHTML+=idx.secoes.map(s=>`<option>${esc(s)}</option>`).join("");
+  $("#msum").innerHTML=idx.secoes.map(s=>`<div class="item"><a href="#" data-sec="${esc(s)}" class="t">${esc(s)}</a>
+    <div class="fraco">${idx.itens.filter(i=>i.secao===s&&i.titulo!==s.split(". ").slice(1).join(". ")).map(i=>`${esc(i.item)} ${esc(i.titulo)} (p. ${i.pagina})`).join(" | ")||`página ${idx.itens.find(i=>i.secao===s).pagina}`}</div></div>`).join("");
+  $("#msum").querySelectorAll("a[data-sec]").forEach(a=>a.onclick=e=>{e.preventDefault();$("#mq").value="";$("#msec").value=a.dataset.sec;perguntar();});
+  const perguntar=async()=>{
+    const q=$("#mq").value.trim(), sec=$("#msec").value||null;
+    if(!q&&!sec){toast("Descreva sua dúvida ou escolha uma seção");return;}
+    const b=$("#mbuscar"); b.disabled=true; b.textContent="Procurando no manual";
+    $("#mres").innerHTML=`<div class="vazio">Procurando no manual</div>`;
+    try{
+      const r=await api("/api/manual/perguntar",{method:"POST",body:JSON.stringify({pergunta:q,secao:sec})});
+      const ia=r.ia?`<div class="resposta-ia"><div class="t" style="margin-bottom:6px">Resposta</div>${esc(r.ia.resposta)}
+        <div>${r.ia.citacoes.map(c=>`<span class="cita">Item ${esc(c.item)} ${esc(c.titulo)} | página ${c.pagina}</span>`).join("")}</div>
+        <div class="fraco" style="margin-top:6px">Resposta gerada a partir do manual. Confira no item indicado.</div></div>`:"";
+      const lista=r.resultados.length?`<h3 style="color:var(--destaque)">${r.ia?"Onde está no manual":"Resultados no manual"}</h3>`+r.resultados.map(x=>`<div class="item">
+          <div class="t">Item ${esc(x.item)} | ${esc(x.titulo)}</div><div class="fraco">${esc(x.secao)} | página ${x.pagina} do PDF</div>
+          <div style="margin-top:6px">${realcar(x.trecho,r.termos)}</div>
+          <details style="margin-top:6px"><summary>Ver item completo</summary><div style="white-space:pre-line;margin-top:6px">${realcar(x.texto,r.termos)}</div></details></div>`).join("")
+        :`<div class="vazio">Não encontrei esse assunto no manual. Tente outras palavras ou escolha uma seção.</div>`;
+      $("#mres").innerHTML=ia+lista;
+    }catch(e){$("#mres").innerHTML=`<div class="vazio">${esc(e.message)}</div>`;}
+    b.disabled=false; b.textContent="Buscar resposta";
+  };
+  $("#mbuscar").onclick=perguntar;
+  $("#mq").onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) perguntar();};
+  main.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{$("#mq").value=c.dataset.q;$("#msec").value="";perguntar();});
+}
+
+const VISTAS={painel:()=>vistaLista("rj"),outros:()=>vistaLista("outros"),revisao:vistaRevisao,preventivo:vistaPreventivo,alertas:vistaAlertas,fontes:vistaFontes,metricas:vistaMetricas,preferencias:vistaPreferencias,usuarios:vistaUsuarios,manual:vistaManual};
 
 (async function iniciar(){
   if(!SNAP){ try{SAUDE=await (await fetch("/api/saude")).json();}catch(e){} }

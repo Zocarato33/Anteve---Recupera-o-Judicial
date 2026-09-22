@@ -103,6 +103,12 @@ No plano Pro do Vercel, também é possível trocar o workflow do GitHub por um 
 * **Prazo por execução:** `ANTEVE_ORCAMENTO_S` (padrão 45) controla quanto tempo cada chamada trabalha antes de parar com segurança. `ANTEVE_PARALELO` (padrão 6) controla quantos tribunais entram em cada lote.
 * **Agendador interno:** fica desligado automaticamente no Vercel. Em servidor próprio ou Docker, ele continua funcionando como antes.
 
+## Manual do usuário e escopo funcional
+
+A tela **Manual** permite baixar o manual em Word ou PDF e pesquisar dúvidas dentro dele. A busca por palavras-chave aponta o item e a página do PDF, com atalhos por assunto e filtro por seção. Com `ANTHROPIC_API_KEY` configurada, o sistema também redige uma resposta curta usando só os itens encontrados (modelo em `ANTEVE_MODELO_MANUAL`, padrão `claude-opus-5`); sem a chave, fica a busca por palavras-chave.
+
+Os documentos ficam em `docs/` (Word) e as fontes em `docs/fonte/`. Para atualizar o manual depois de editar `docs/fonte/manual.md`: gere o Word com `node docs/fonte/gerar_docx.js`, converta para PDF com o LibreOffice, recalcule as páginas com `docs/fonte/paginar.py`, copie Word e PDF para `anteve/static/manual/` e rode `python docs/fonte/gerar_indice_manual.py docs/fonte/manual.md docs/fonte/manual.pag.json`.
+
 ## Restrição de acesso
 
 O painel e a API só respondem aos IPs de `ANTEVE_IPS_PERMITIDOS`. Qualquer outro endereço recebe 403 antes mesmo da tela de login. As rotas `/api/cron/*` ficam fora da restrição porque são chamadas pelo Vercel Cron e pelo GitHub Actions, e continuam protegidas pelo `CRON_SECRET`. No Vercel, o IP é lido do `X-Forwarded-For`, que a plataforma sobrescreve. Em servidor próprio atrás de proxy, defina `ANTEVE_CONFIAR_PROXY=1`.

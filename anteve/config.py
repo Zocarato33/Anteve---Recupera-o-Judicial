@@ -71,6 +71,7 @@ class Config:
     # IA
     anthropic_api_key: str = _env("ANTHROPIC_API_KEY", "")
     modelo_ia: str = _env("ANTEVE_MODELO_IA", "claude-sonnet-5")
+    modelo_manual: str = _env("ANTEVE_MODELO_MANUAL", "claude-opus-5")  # respostas de dúvidas do manual
     # Notificação
     smtp_host: str = _env("SMTP_HOST", "")
     smtp_porta: int = int(_env("SMTP_PORTA", "587"))

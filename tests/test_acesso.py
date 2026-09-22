@@ -144,3 +144,21 @@ def test_contagem_considera_a_base_inteira(cliente):
     assert len(cliente.get("/api/processos", params={"limite": 1}, headers=adm).json()) == 1
     c = cliente.get("/api/processos/contagem", headers=adm).json()
     assert c["total"] == n and sum(c["por_status"].values()) == n
+
+
+def test_manual_busca_download_e_ia_opcional(cliente, monkeypatch):
+    adm = _entrar(cliente)
+    idx = cliente.get("/api/manual", headers=adm).json()
+    assert idx["itens"] and all(i["pagina"] for i in idx["itens"]) and "13. Usuários" in idx["secoes"]
+    for formato, inicio in (("docx", b"PK"), ("pdf", b"%PDF")):
+        r = cliente.get(f"/api/manual/arquivo/{formato}", headers=adm)
+        assert r.status_code == 200 and r.content[:len(inicio)] == inicio
+    assert cliente.get("/api/manual/arquivo/exe", headers=adm).status_code == 404
+    monkeypatch.setattr(CONFIG, "anthropic_api_key", "")
+    r = cliente.post("/api/manual/perguntar", json={"pergunta": "como incluir um novo usuário"}, headers=adm).json()
+    assert r["ia"] is None and r["resultados"][0]["item"] == "13.1" and r["resultados"][0]["pagina"]
+    filtrado = cliente.post("/api/manual/perguntar", json={"pergunta": "senha", "secao": "13. Usuários"}, headers=adm).json()
+    assert {x["secao"] for x in filtrado["resultados"]} == {"13. Usuários"}
+    assert cliente.post("/api/manual/perguntar", json={"pergunta": "x", "secao": "inexistente"}, headers=adm).status_code == 422
+    assert cliente.post("/api/manual/perguntar", json={"pergunta": "a" * 601}, headers=adm).status_code == 422
+    assert cliente.get("/api/manual", headers={"x-forwarded-for": SBK}).status_code == 401
