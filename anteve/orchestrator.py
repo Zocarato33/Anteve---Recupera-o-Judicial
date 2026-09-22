@@ -101,23 +101,41 @@ def coletar_tribunal(db, tribunal, modo="incremental", dias=None, inicio_inicial
     return resumo
 
 
-def enriquecer_com_diario(db, limite=25):
-    """Busca publicações oficiais (DJEN) para processos ativos ainda sem documento."""
+_SQL_ALVOS_DIARIO = (
+    "FROM processos p WHERE p.status IN ('CONFIRMADO','ATUALIZADO','PROVISORIO') AND p.tipo_evento LIKE 'RJ_%' "
+    "AND (NOT EXISTS (SELECT 1 FROM evidencias e WHERE e.processo_id=p.id AND e.tipo='PUBLICACAO_OFICIAL') "
+    "OR NOT EXISTS (SELECT 1 FROM partes pa WHERE pa.processo_id=p.id)) "
+    "AND (p.diario_consultado_em IS NULL OR p.diario_consultado_em < ?)")
+
+
+def pendentes_diario(db):
+    return db.um("SELECT COUNT(*) n " + _SQL_ALVOS_DIARIO, (iso(agora() - timedelta(hours=24)),))["n"]
+
+
+def enriquecer_com_diario(db, limite=25, prazo=None):
+    """Busca publicações oficiais (DJEN) para processos ativos ainda sem documento ou sem partes.
+    Cada processo consultado só volta à fila 24 h depois, para um processo sem publicação não
+    bloquear os demais."""
     if not CONFIG.djen_habilitado:
         return {"status": "desabilitado"}
-    alvos = db.todos("SELECT p.id, p.numero_cnj FROM processos p WHERE p.status IN ('CONFIRMADO','ATUALIZADO','PROVISORIO') "
-                     "AND p.tipo_evento LIKE 'RJ_%' AND NOT EXISTS (SELECT 1 FROM evidencias e WHERE e.processo_id=p.id "
-                     "AND e.tipo='PUBLICACAO_OFICIAL') ORDER BY p.data_ajuizamento DESC LIMIT ?", (limite,))
-    total = 0
+    alvos = db.todos("SELECT p.id, p.numero_cnj " + _SQL_ALVOS_DIARIO +
+                     " ORDER BY p.diario_consultado_em IS NOT NULL, p.diario_consultado_em, p.data_ajuizamento DESC LIMIT ?",
+                     (iso(agora() - timedelta(hours=24)), limite))
+    total, consultados, partes_antes = 0, 0, db.um("SELECT COUNT(*) n FROM partes")["n"]
     for a in alvos:
+        if prazo and time.time() > prazo:
+            break
         try:
             pubs = djen.por_processo(a["numero_cnj"])
         except FonteIndisponivel as exc:
             _saude(db, "DJEN", "NACIONAL", "INDISPONIVEL", str(exc))
-            return {"status": "indisponivel", "erro": str(exc), "processados": total}
+            return {"status": "indisponivel", "erro": str(exc), "processados": consultados}
         total += pipeline.incorporar_publicacoes(db, a["id"], pubs)
+        db.exec("UPDATE processos SET diario_consultado_em=? WHERE id=?", (iso(agora()), a["id"]))
+        consultados += 1
     _saude(db, "DJEN", "NACIONAL", "OK", registros=total)
-    return {"status": "ok", "novas_evidencias": total}
+    return {"status": "ok", "consultados": consultados, "novas_evidencias": total,
+            "novas_partes": db.um("SELECT COUNT(*) n FROM partes")["n"] - partes_antes, "pendentes": pendentes_diario(db)}
 
 
 def ciclo(db, tribunais=None):
@@ -160,7 +178,7 @@ class Agendador(threading.Thread):
             self.parar.wait(CONFIG.intervalo_coleta_min * 60)
 
 
-def executar_com_orcamento(db, modo="incremental", dias=None, orcamento_s=45, diario_limite=5, paralelo=None):
+def executar_com_orcamento(db, modo="incremental", dias=None, orcamento_s=45, diario_limite=40, paralelo=None):
     """Execução para ambiente sem servidor (Vercel). Cada chamada processa um lote de tribunais
     em paralelo (a espera é de rede; o acesso ao banco é serializado) e avança o ponteiro do
     rodízio no banco, para a chamada seguinte continuar de onde esta parou."""
@@ -177,7 +195,7 @@ def executar_com_orcamento(db, modo="incremental", dias=None, orcamento_s=45, di
     db.estado(chave, (pos + len(lote)) % len(tribunais))
     diario = None
     if modo == "incremental" and time.time() - t0 < orcamento_s:
-        diario = enriquecer_com_diario(db, limite=diario_limite)
+        diario = enriquecer_com_diario(db, limite=diario_limite, prazo=t0 + orcamento_s)
         for s in db.todos("SELECT DISTINCT cnpj FROM scores"):
             pipeline.recalcular_score(db, s["cnpj"])
     db.exec("INSERT INTO execucoes(tipo,inicio,fim,resumo) VALUES(?,?,?,?)",

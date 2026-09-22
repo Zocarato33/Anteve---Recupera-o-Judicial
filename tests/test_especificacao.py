@@ -309,3 +309,37 @@ def test_execucao_parcial_retoma_sem_perder_registros(db, monkeypatch):
     res = orchestrator.coletar_tribunal(db, "tjsp")
     assert not res.get("parcial") and db.estado("parcial:tjsp") == "0"
     assert db.um("SELECT status FROM saude_fontes")["status"] == "OK"
+
+
+# ---------------------------------------------------------------- partes
+def _pub_partes(hash_="pp1"):
+    from anteve.connectors import djen
+    item = {"numero_processo": "10138998920268260114", "siglaTribunal": "TJSP", "texto": "Intimação no pedido de recuperação judicial",
+            "hash": hash_, "link": "https://djen.exemplo/pp",
+            "destinatarios": [{"nome": "JOAO VARELLA SOCIEDADE DE ADVOGADOS", "polo": "A"},
+                              {"nome": "TOPSERVICE TERCEIRIZAÇÃO EIRELI", "polo": "P"}],
+            "destinatarioadvogados": [{"advogado": {"nome": "João Campiello Varella Neto", "numero_oab": "12345", "uf_oab": "PE"}}]}
+    return djen._normalizar(item)
+
+
+def test_partes_do_djen_sao_gravadas_sem_duplicar(db):
+    pid = pipeline.processar_registro(db, reg())["processo_id"]
+    pipeline.incorporar_publicacoes(db, pid, [_pub_partes("pp1")])
+    pipeline.incorporar_publicacoes(db, pid, [_pub_partes("pp2")])  # outra publicação com as mesmas partes
+    partes = {(x["polo"], x["tipo"], x["nome"], x["oab"]) for x in db.todos("SELECT * FROM partes WHERE processo_id=?", (pid,))}
+    assert partes == {("ATIVO", "PARTE", "JOAO VARELLA SOCIEDADE DE ADVOGADOS", None),
+                      ("PASSIVO", "PARTE", "TOPSERVICE TERCEIRIZAÇÃO EIRELI", None),
+                      ("OUTRO", "ADVOGADO", "JOÃO CAMPIELLO VARELLA NETO", "12345/PE")}
+    # nome sem CNPJ continua sem criar vínculo de identidade
+    assert db.um("SELECT COUNT(*) n FROM processo_empresas")["n"] == 0
+
+
+def test_fila_do_diario_nao_repete_processo_em_24h(db, monkeypatch):
+    from anteve import orchestrator
+    from anteve.connectors import djen
+    consultas = []
+    monkeypatch.setattr(djen, "por_processo", lambda n: consultas.append(n) or [])
+    pipeline.processar_registro(db, reg())
+    assert orchestrator.enriquecer_com_diario(db)["consultados"] == 1
+    r = orchestrator.enriquecer_com_diario(db)
+    assert r["consultados"] == 0 and r["pendentes"] == 0 and len(consultas) == 1

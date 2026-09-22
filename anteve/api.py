@@ -17,7 +17,7 @@ from .config import CONFIG
 from .connectors import cnpj as cnpj_conn
 from .connectors.base import FonteIndisponivel
 from .db import DB, PAPEIS
-from .normalize import agora, cnj_formatar, cnpj_formatar, cnpj_limpar, cnpj_valido, iso, parse_data
+from .normalize import agora, chave_texto, cnj_formatar, cnpj_formatar, cnpj_limpar, cnpj_valido, iso, parse_data
 from . import notifier
 
 db = DB(CONFIG.db_path)
@@ -80,6 +80,8 @@ def _proc_publico(p, detalhado=False):
     p["empresas"] = [dict(e, cnpj_formatado=cnpj_formatar(e["cnpj"])) for e in db.todos(
         "SELECT e.cnpj, e.raiz_cnpj, e.razao_social, e.nome_fantasia, e.aliases, e.municipio, e.uf, e.porte, e.cnae, "
         "e.situacao_cadastral, pe.papel, pe.polo FROM processo_empresas pe JOIN empresas e ON e.id=pe.empresa_id WHERE pe.processo_id=?", (p["id"],))]
+    p["partes"] = db.todos("SELECT nome, polo, tipo, oab, fonte, url FROM partes WHERE processo_id=? "
+                           "ORDER BY CASE polo WHEN 'ATIVO' THEN 0 WHEN 'PASSIVO' THEN 1 ELSE 2 END, tipo DESC, nome", (p["id"],))
     dtd, dta, dtf = parse_data(p.get("data_descoberta")), parse_data(p.get("data_ajuizamento")), parse_data(p.get("data_disponivel_fonte"))
     p["latencia_judicial_h"] = round((dtd - dta).total_seconds() / 3600, 1) if dtd and dta else None
     p["latencia_fonte_h"] = round((dtd - dtf).total_seconds() / 3600, 1) if dtd and dtf and dtd >= dtf else None
@@ -215,8 +217,9 @@ def listar(status: str = None, tipo: str = None, uf: str = None, tribunal: str =
             par.append(valor.upper())
     if q:
         sql += " AND (numero_cnj LIKE ? OR vara LIKE ? OR id IN (SELECT pe.processo_id FROM processo_empresas pe JOIN empresas e "
-        sql += "ON e.id=pe.empresa_id WHERE e.razao_social LIKE ? OR e.cnpj LIKE ?))"
-        par += [f"%{q}%"] * 3 + [f"%{cnpj_limpar(q)}%"]
+        sql += "ON e.id=pe.empresa_id WHERE e.razao_social LIKE ? OR e.cnpj LIKE ?) "
+        sql += "OR id IN (SELECT processo_id FROM partes WHERE chave LIKE ?))"
+        par += [f"%{q}%"] * 3 + [f"%{cnpj_limpar(q) or q}%", f"%{chave_texto(q)}%"]
     sql += " ORDER BY CASE prioridade WHEN 'URGENTE' THEN 0 WHEN 'ALTA' THEN 1 WHEN 'MEDIA' THEN 2 ELSE 3 END, data_ajuizamento DESC LIMIT ?"
     par.append(min(limite, 2000))
     return [_proc_publico(p) for p in db.todos(sql, par)]
@@ -501,6 +504,39 @@ def coletar(body: Coleta, u=Depends(exige("administrar"))):
                                             orcamento_s=orcamento)
     paralelo = int(os.environ.get("ANTEVE_PARALELO", "6"))
     return dict(r, total_tribunais=len(CONFIG.tribunais), lotes=math.ceil(len(CONFIG.tribunais) / paralelo))
+
+
+class Parte(BaseModel):
+    nome: str
+    polo: str = "ATIVO"
+    tipo: str = "PARTE"
+    oab: str | None = None
+    evidencia_url: str
+
+
+@app.post("/api/processos/{numero}/partes")
+def incluir_parte(numero: str, body: Parte, u=Depends(exige("revisar"))):
+    p = db.um("SELECT id, numero_cnj FROM processos WHERE numero_cnj=?", (cnj_formatar(numero) or numero,))
+    if not p:
+        raise HTTPException(404, "processo não encontrado")
+    if body.polo.upper() not in ("ATIVO", "PASSIVO", "OUTRO") or body.tipo.upper() not in ("PARTE", "ADVOGADO"):
+        raise HTTPException(422, "polo ou tipo inválido")
+    if not body.evidencia_url.strip():
+        raise HTTPException(422, "informe a URL da consulta processual usada como evidência")
+    if not pipeline.registrar_parte(db, p["id"], body.nome, body.polo, body.tipo.upper(), body.oab, fonte="MANUAL",
+                                    url=body.evidencia_url.strip(), ator=u["login"]):
+        raise HTTPException(409, "parte já cadastrada ou nome inválido")
+    db.auditar(u["login"], "parte.incluir", "processo", p["numero_cnj"], body.model_dump())
+    return {"ok": True}
+
+
+@app.post("/api/diario")
+def buscar_diario(u=Depends(exige("administrar"))):
+    """Um lote de consultas ao DJEN (publicações e partes) dentro do prazo de uma função."""
+    import time
+    orcamento = int(os.environ.get("ANTEVE_ORCAMENTO_S", "45"))
+    db.auditar(u["login"], "diario.executar", "sistema", None)
+    return orchestrator.enriquecer_com_diario(db, limite=200, prazo=time.time() + orcamento)
 
 
 @app.post("/api/tpu/sincronizar")

@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS empresas(
   aliases TEXT, municipio TEXT, uf TEXT, cnae TEXT, porte TEXT, situacao_cadastral TEXT,
   grupo_economico TEXT, confianca_identidade TEXT, fonte_identidade TEXT, atualizado_em TEXT);
 CREATE INDEX IF NOT EXISTS ix_emp_raiz ON empresas(raiz_cnpj);
+CREATE TABLE IF NOT EXISTS partes(
+  id INTEGER PRIMARY KEY, processo_id INTEGER, nome TEXT, chave TEXT, polo TEXT, tipo TEXT, oab TEXT,
+  fonte TEXT, url TEXT, registrado_por TEXT, coletado_em TEXT,
+  UNIQUE(processo_id, chave, polo, tipo));
 CREATE TABLE IF NOT EXISTS processo_empresas(
   processo_id INTEGER, empresa_id INTEGER, polo TEXT, papel TEXT, evidencia_id INTEGER,
   PRIMARY KEY(processo_id, empresa_id));
@@ -198,15 +202,18 @@ class DB:
             self._migrar()
 
     def _migrar(self):
-        """Colunas acrescentadas depois da versão 1.0: login, senha e versão de sessão dos usuários."""
-        if self.pg:
-            existentes = {r["column_name"] for r in self.todos(
-                "SELECT column_name FROM information_schema.columns WHERE table_name='usuarios'")}
-        else:
-            existentes = {r["name"] for r in self.todos("PRAGMA table_info(usuarios)")}
-        for coluna, tipo in (("login", "TEXT"), ("senha_hash", "TEXT"), ("sessao_versao", "INTEGER DEFAULT 0")):
-            if coluna not in existentes:
-                self.exec(f"ALTER TABLE usuarios ADD COLUMN {coluna} {tipo}")
+        """Colunas acrescentadas depois da versão 1.0."""
+        novas = {"usuarios": (("login", "TEXT"), ("senha_hash", "TEXT"), ("sessao_versao", "INTEGER DEFAULT 0")),
+                 "processos": (("diario_consultado_em", "TEXT"),)}
+        for tabela, colunas in novas.items():
+            if self.pg:
+                existentes = {r["column_name"] for r in self.todos(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name=?", (tabela,))}
+            else:
+                existentes = {r["name"] for r in self.todos(f"PRAGMA table_info({tabela})")}
+            for coluna, tipo in colunas:
+                if coluna not in existentes:
+                    self.exec(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
         self.exec("CREATE UNIQUE INDEX IF NOT EXISTS usuarios_login ON usuarios(login)")
 
     # utilidades -------------------------------------------------------

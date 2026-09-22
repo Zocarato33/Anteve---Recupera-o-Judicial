@@ -26,6 +26,12 @@ def _normalizar(item):
     destinatarios = []
     for d in item.get("destinatarios") or []:
         destinatarios.append({"nome": d.get("nome"), "polo": d.get("polo")})
+    advogados = []
+    for d in item.get("destinatarioadvogados") or []:
+        a = d.get("advogado") or d
+        if a.get("nome"):
+            oab = f"{a.get('numero_oab')}/{a.get('uf_oab')}" if a.get("numero_oab") else None
+            advogados.append({"nome": a.get("nome"), "oab": oab})
     return {
         "fonte": "DJEN",
         "numero_cnj": numero,
@@ -36,6 +42,7 @@ def _normalizar(item):
         "classe": item.get("nomeClasse"),
         "texto": texto,
         "destinatarios": destinatarios,
+        "advogados": advogados,
         "url": item.get("link"),
         "hash": item.get("hash") or hash_obj(texto),
     }

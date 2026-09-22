@@ -249,12 +249,30 @@ function linhaLat(p){
     <div class="trilho"><div class="seg1" style="width:${fa}%"></div><div class="seg2" style="left:${fa}%;width:${100-fa}%"></div></div>
     <div class="leg"><span>até a fonte ${f?dias(Math.max(f-a,0)):"?"}</span><span>descoberta</span></div></div>`;
 }
+const POLO={ATIVO:"Polo ativo",PASSIVO:"Polo passivo",OUTRO:"Outros"};
+function partesPolo(p,polo){ return (p.partes||[]).filter(x=>x.tipo==="PARTE"&&x.polo===polo).map(x=>x.nome); }
 function empresaCel(p){
+  const ativo=partesPolo(p,"ATIVO"), passivo=partesPolo(p,"PASSIVO");
+  const partes=(ativo.length||passivo.length)?`${ativo.length?`<div class="fraco">Requerente: ${esc(ativo[0])}${ativo.length>1?` e mais ${ativo.length-1}`:""}</div>`:""}${passivo.length?`<div class="fraco">Requerido: ${esc(passivo[0])}${passivo.length>1?` e mais ${passivo.length-1}`:""}</div>`:""}`:"";
   if(p.empresas&&p.empresas.length){
     const e=p.empresas[0];
-    return `<b>${esc(e.razao_social||"Razão social não informada")}</b><div class="fraco">${esc(e.cnpj_formatado||"")}${p.empresas.length>1?` e mais ${p.empresas.length-1}`:""}</div>`;
+    return `<b>${esc(e.razao_social||"Razão social não informada")}</b><div class="fraco">${esc(e.cnpj_formatado||"")}${p.empresas.length>1?` e mais ${p.empresas.length-1}`:""}</div>${partes}`;
   }
-  return `<span class="fraco">Empresa não identificada</span><div class="bloq">identidade pendente</div>`;
+  if(ativo.length||passivo.length){
+    const mais=(l)=>l.length>1?` e mais ${l.length-1}`:"";
+    const linha2=ativo.length?`<div class="fraco">Requerente${mais(ativo)}</div>${passivo.length?`<div class="fraco">Requerido: ${esc(passivo[0])}${mais(passivo)}</div>`:""}`:`<div class="fraco">Requerido${mais(passivo)}</div>`;
+    return `<b>${esc(ativo[0]||passivo[0])}</b>${linha2}<div class="bloq">CNPJ pendente</div>`;
+  }
+  return `<span class="fraco">Partes não identificadas</span><div class="bloq">aguardando publicação no DJEN</div>`;
+}
+function blocoPartes(p){
+  const l=p.partes||[];
+  if(!l.length) return `<div class="item">Partes ainda não identificadas. A API pública do DataJud não informa partes; elas chegam pelas publicações do DJEN ou podem ser incluídas abaixo a partir da consulta processual do tribunal.</div>`;
+  return ["ATIVO","PASSIVO","OUTRO"].map(polo=>{
+    const grupo=l.filter(x=>x.polo===polo); if(!grupo.length) return "";
+    return `<div class="item"><div class="t">${POLO[polo]}</div>${grupo.map(x=>`<div>${x.tipo==="ADVOGADO"?"Advogado(a): ":""}${esc(x.nome)}${x.oab?` <span class="fraco">OAB ${esc(x.oab)}</span>`:""}
+      <span class="fraco">| ${esc(x.fonte)}${/^https?:\/\//i.test(x.url||"")?` | <a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">fonte</a>`:""}</span></div>`).join("")}</div>`;
+  }).join("");
 }
 async function vistaLista(camada){
   const main=$("#main");
@@ -265,7 +283,7 @@ async function vistaLista(camada){
   main.innerHTML = cab(titulo, sub, !SNAP&&pode("exportar")&&camada==="rj"?`<button class="btn sec" id="exp">Exportar confirmadas (CSV)</button>`:"")+
     `<div class="camadas" id="camadas"></div>
      <div class="filtros" role="search">
-      <input type="search" id="fq" placeholder="Buscar por número CNJ, vara, razão social ou CNPJ" value="${esc(f.q)}" aria-label="Buscar">
+      <input type="search" id="fq" placeholder="Buscar por número CNJ, vara, parte, advogado, razão social ou CNPJ" value="${esc(f.q)}" aria-label="Buscar">
       <select id="fstatus" aria-label="Status"><option value="">Todos os status</option>${["CONFIRMADO","ATUALIZADO","PROVISORIO","CANDIDATO","ENCERRADO"].map(s=>`<option value="${s}">${STATUS[s]}</option>`).join("")}</select>
       <select id="fidade" aria-label="Idade"><option value="">Qualquer idade</option>${Object.entries(IDADE).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>
       <select id="fprio" aria-label="Prioridade"><option value="">Qualquer prioridade</option>${Object.entries(PRIO).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>
@@ -285,7 +303,7 @@ async function vistaLista(camada){
       .map(([r,n,d])=>`<div class="camada"><div class="r">${r}</div><div class="n">${n}</div><div class="r">${d}</div></div>`).join("");
     const w=$(".tabela-wrap");
     if(!l.length){w.innerHTML=`<div class="vazio">Nenhum registro com estes filtros.</div>`;return;}
-    w.innerHTML=`<table><thead><tr><th>Empresa e CNPJ</th><th>Evento e estágio</th><th>Datas e latência</th><th>Tribunal e processo</th><th>Confiança</th><th>Prioridade</th><th>Status</th></tr></thead><tbody>
+    w.innerHTML=`<table><thead><tr><th>Partes e CNPJ</th><th>Evento e estágio</th><th>Datas e latência</th><th>Tribunal e processo</th><th>Confiança</th><th>Prioridade</th><th>Status</th></tr></thead><tbody>
       ${l.slice(0,600).map(p=>`<tr data-cnj="${esc(p.numero_cnj)}" tabindex="0">
         <td>${empresaCel(p)}</td>
         <td><b>${esc(ROTULO[p.tipo_evento]||p.tipo_evento)}</b><div class="fraco">${esc(ESTAGIO[p.estagio]||"")}</div></td>
@@ -317,6 +335,15 @@ async function abrir(cnj){
     <h2>${esc(ROTULO[p.tipo_evento]||p.tipo_evento)}</h2>
     <div class="fraco">${esc(p.numero_cnj)} | ${esc(p.tribunal)}</div>
     ${(p.inconsistencias||[]).length?`<div class="alerta-nc"><b>Divergências</b><br>${p.inconsistencias.map(esc).join("<br>")}</div>`:""}
+    <h3>Partes</h3>
+    ${blocoPartes(p)}
+    ${!SNAP&&pode("revisar")?`<details><summary>Incluir parte</summary><div class="formulario">
+      <label>Nome<input class="campo" id="pnome"></label>
+      <label>Polo<select class="campo" id="ppolo"><option value="ATIVO">Polo ativo (requerente)</option><option value="PASSIVO">Polo passivo (requerido)</option><option value="OUTRO">Outros</option></select></label>
+      <label>Tipo<select class="campo" id="ptipo"><option value="PARTE">Parte</option><option value="ADVOGADO">Advogado(a)</option></select></label>
+      <label>OAB (se advogado)<input class="campo" id="poab" placeholder="12345/PE"></label>
+      <label>URL da consulta processual usada como evidência<input class="campo" id="purl"></label>
+      <button class="btn" id="pincluir">Incluir parte</button></div></details>`:""}
     <h3>Empresa</h3>
     ${p.empresas.length?p.empresas.map(e=>`<div class="item"><div class="t">${esc(e.razao_social)}</div><div>${esc(e.cnpj_formatado)} | raiz ${esc(e.raiz_cnpj)} | ${esc(e.papel)}</div>
       <div class="fraco">${esc([e.municipio,e.uf,e.porte,e.cnae,e.situacao_cadastral].filter(Boolean).join(" | "))}</div>${e.aliases&&e.aliases!=="[]"?`<div class="fraco">Outros nomes: ${esc(JSON.parse(e.aliases).join(", "))}</div>`:""}</div>`).join("")
@@ -360,6 +387,7 @@ async function abrir(cnj){
   const acao=async(fn,msg)=>{try{await fn();toast(msg);abrir(cnj);}catch(e){toast(e.message)}};
   if($("#ibusca")) $("#ibusca").onclick=async()=>{try{const c=await api("/api/cnpj/"+encodeURIComponent($("#icnpj").value.replace(/[^0-9A-Za-z]/g,"")));
     $("#icad").textContent=c.razao_social?`${c.razao_social} | ${c.municipio||""}/${c.uf||""} | ${c.situacao_cadastral||""}`:"CNPJ não encontrado";}catch(e){$("#icad").textContent=e.message}};
+  if($("#pincluir")) $("#pincluir").onclick=()=>acao(()=>api(`/api/processos/${encodeURIComponent(cnj)}/partes`,{method:"POST",body:JSON.stringify({nome:$("#pnome").value,polo:$("#ppolo").value,tipo:$("#ptipo").value,oab:$("#poab").value||null,evidencia_url:$("#purl").value})}),"Parte incluída");
   if($("#ivinc")) $("#ivinc").onclick=()=>acao(()=>api(`/api/processos/${encodeURIComponent(cnj)}/identidade`,{method:"POST",body:JSON.stringify({cnpj:$("#icnpj").value,papel:$("#ipapel").value,evidencia_url:$("#iurl").value})}),"Identidade vinculada");
   if($("#osalvar")) $("#osalvar").onclick=()=>acao(()=>api(`/api/oportunidades/${op.id}`,{method:"POST",body:JSON.stringify({responsavel:$("#oresp").value||null,status_funil:$("#oetapa").value,registro_contato:$("#ocont").value||null})}),"Funil atualizado");
   if($("#cenviar")) $("#cenviar").onclick=()=>acao(()=>api(`/api/correcoes/${encodeURIComponent(cnj)}`,{method:"POST",body:JSON.stringify({tipo:$("#ctipo").value,descricao:$("#cdesc").value})}),"Correção registrada e enviada para revisão");
@@ -424,7 +452,7 @@ async function vistaAlertas(){
 async function vistaFontes(){
   const main=$("#main");
   main.innerHTML=cab("Fontes e saúde","Status por fonte e tribunal. Falha de fonte nunca é interpretada como ausência de processo.",
-    !SNAP&&pode("administrar")?`<div class="filtros" style="margin:0"><button class="btn sec" id="tpu">Sincronizar TPU</button><button class="btn" id="col">Executar coleta agora</button></div>`:"")+`<div id="lf"><div class="vazio">Carregando</div></div>`;
+    !SNAP&&pode("administrar")?`<div class="filtros" style="margin:0"><button class="btn sec" id="tpu">Sincronizar TPU</button><button class="btn sec" id="dje">Buscar partes no DJEN</button><button class="btn" id="col">Executar coleta agora</button></div>`:"")+`<div id="lf"><div class="vazio">Carregando</div></div>`;
   let d; try{d=await api("/api/fontes");}catch(e){$("#lf").innerHTML=`<div class="vazio">${esc(e.message)}</div>`;return;}
   $("#lf").innerHTML=`<div class="saude">${d.saude.map(s=>`<div class="c ${esc(s.status)}"><span class="dot"></span><b>${esc(s.fonte)} ${esc(s.tribunal)}</b>
     <div class="fraco">${esc(s.status==="OK"?"operando":s.status.toLowerCase().replace(/_/g," "))}</div><div class="fraco">${s.ultimo_sucesso?"último sucesso "+dth(s.ultimo_sucesso):"sem sucesso registrado"}</div>
@@ -442,6 +470,19 @@ async function vistaFontes(){
       }
       const ne=Object.keys(erros).length;
       toast(`Coleta concluída em ${feitos.length} tribunais${ne?`; ${ne} com erro (veja abaixo)`:""}`);
+    }catch(e){toast(e.message)}
+    vistaFontes();
+  };
+  if($("#dje")) $("#dje").onclick=async()=>{
+    const b=$("#dje"); b.disabled=true; let partes=0, consultados=0;
+    try{
+      for(let i=0;i<20;i++){
+        b.textContent=`Consultando DJEN (${consultados} processos)`;
+        const r=await api("/api/diario",{method:"POST",body:"{}"});
+        if(r.status!=="ok"){ toast(r.status==="indisponivel"?`DJEN indisponível: ${r.erro}`:"DJEN desabilitado"); break; }
+        partes+=r.novas_partes||0; consultados+=r.consultados||0;
+        if(!r.pendentes||!r.consultados){ toast(`${consultados} processos consultados; ${partes} partes novas`); break; }
+      }
     }catch(e){toast(e.message)}
     vistaFontes();
   };
