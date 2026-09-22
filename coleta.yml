@@ -1,0 +1,24 @@
+name: Coleta agendada
+
+# Dispara a coleta incremental no Vercel. Cada chamada processa um lote de tribunais em
+# rodízio; com intervalo de 10 minutos, os 27 TJs são percorridos em cerca de 50 minutos.
+# Configure em Settings > Secrets and variables > Actions:
+#   secret   CRON_SECRET  (o mesmo valor configurado no Vercel)
+#   variable APP_URL      (ex.: https://anteve.vercel.app)
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  coleta:
+    if: ${{ vars.APP_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Chamar coleta incremental
+        run: |
+          curl -fsS --max-time 90 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.APP_URL }}/api/cron/coleta"

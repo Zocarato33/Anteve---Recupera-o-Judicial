@@ -1,0 +1,31 @@
+name: Testes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: anteve
+          POSTGRES_PASSWORD: anteve
+          POSTGRES_DB: anteve_teste
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Testes em SQLite
+        run: python -m pytest -q tests
+      - name: Testes em PostgreSQL
+        env:
+          TEST_DATABASE_URL: postgresql://anteve:anteve@localhost:5432/anteve_teste
+        run: python -m pytest -q tests
