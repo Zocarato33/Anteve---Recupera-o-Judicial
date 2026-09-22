@@ -130,3 +130,17 @@ def test_busca_por_parte_e_inclusao_manual(cliente):
     assert [p["numero_cnj"] for p in achados] == [cnj]
     assert achados[0]["partes"][0]["polo"] == "PASSIVO"
     assert cliente.get("/api/processos", params={"q": "nao existe ninguem"}, headers=adm).json() == []
+
+
+def test_contagem_considera_a_base_inteira(cliente):
+    from datetime import timedelta
+    from anteve import pipeline
+    from tests.test_especificacao import reg
+    adm = _entrar(cliente)
+    for i in range(5):
+        pipeline.processar_registro(api.db, reg(numero=f"100000{i}-00.2026.8.26.0100", idf=f"N{i}"))
+    n = api.db.um("SELECT COUNT(*) n FROM processos WHERE tipo_evento LIKE 'RJ_%' AND status!='DESCARTADO'")["n"]
+    assert n >= 2
+    assert len(cliente.get("/api/processos", params={"limite": 1}, headers=adm).json()) == 1
+    c = cliente.get("/api/processos/contagem", headers=adm).json()
+    assert c["total"] == n and sum(c["por_status"].values()) == n

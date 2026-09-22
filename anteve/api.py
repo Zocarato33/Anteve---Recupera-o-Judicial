@@ -201,11 +201,8 @@ def eu(u=Depends(usuario)):
     return {"nome": u["nome"], "login": u["login"], "papel": u["papel"], "permissoes": sorted(PAPEIS[u["papel"]])}
 
 
-@app.get("/api/processos")
-def listar(status: str = None, tipo: str = None, uf: str = None, tribunal: str = None, idade: str = None,
-           prioridade: str = None, q: str = None, camada: str = Query("rj", pattern="^(rj|todos|outros)$"),
-           limite: int = 300, u=Depends(exige("ler"))):
-    sql, par = "SELECT * FROM processos WHERE status != 'DESCARTADO'", []
+def _filtro_processos(status, tipo, uf, tribunal, idade, prioridade, q, camada):
+    sql, par = " FROM processos WHERE status != 'DESCARTADO'", []
     if camada == "rj":
         sql += " AND tipo_evento LIKE 'RJ_%'"
     elif camada == "outros":
@@ -220,9 +217,32 @@ def listar(status: str = None, tipo: str = None, uf: str = None, tribunal: str =
         sql += "ON e.id=pe.empresa_id WHERE e.razao_social LIKE ? OR e.cnpj LIKE ?) "
         sql += "OR id IN (SELECT processo_id FROM partes WHERE chave LIKE ?))"
         par += [f"%{q}%"] * 3 + [f"%{cnpj_limpar(q) or q}%", f"%{chave_texto(q)}%"]
+    return sql, par
+
+
+@app.get("/api/processos")
+def listar(status: str = None, tipo: str = None, uf: str = None, tribunal: str = None, idade: str = None,
+           prioridade: str = None, q: str = None, camada: str = Query("rj", pattern="^(rj|todos|outros)$"),
+           limite: int = 300, u=Depends(exige("ler"))):
+    filtro, par = _filtro_processos(status, tipo, uf, tribunal, idade, prioridade, q, camada)
+    sql = "SELECT *" + filtro
     sql += " ORDER BY CASE prioridade WHEN 'URGENTE' THEN 0 WHEN 'ALTA' THEN 1 WHEN 'MEDIA' THEN 2 ELSE 3 END, data_ajuizamento DESC LIMIT ?"
     par.append(min(limite, 2000))
     return [_proc_publico(p) for p in db.todos(sql, par)]
+
+
+@app.get("/api/processos/contagem")
+def contagem(status: str = None, tipo: str = None, uf: str = None, tribunal: str = None, idade: str = None,
+             prioridade: str = None, q: str = None, camada: str = Query("rj", pattern="^(rj|todos|outros)$"),
+             u=Depends(exige("ler"))):
+    """Totais da base inteira com os mesmos filtros da lista (a lista é limitada em linhas)."""
+    filtro, par = _filtro_processos(status, tipo, uf, tribunal, idade, prioridade, q, camada)
+    linhas = db.todos("SELECT status, contato_bloqueado, COUNT(*) AS n" + filtro + " GROUP BY status, contato_bloqueado", par)
+    por_status = {}
+    for r in linhas:
+        por_status[r["status"]] = por_status.get(r["status"], 0) + r["n"]
+    return {"total": sum(por_status.values()), "por_status": por_status,
+            "contato_liberado": sum(r["n"] for r in linhas if not r["contato_bloqueado"])}
 
 
 @app.get("/api/processos/{numero}")
