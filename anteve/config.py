@@ -36,8 +36,11 @@ class Config:
         v.strip() for v in _env("ANTEVE_IPS_PERMITIDOS", "186.193.236.194,179.191.112.34").split(",") if v.strip()])
     # Atrás de proxy (Vercel), o IP do cliente vem do X-Forwarded-For. Fora dele, da conexão.
     confiar_proxy: bool = _env("ANTEVE_CONFIAR_PROXY", "1" if os.environ.get("VERCEL") else "0") == "1"
-    # Token do administrador inicial: se definido, o usuário é criado na primeira execução.
-    token_admin: str = _env("ANTEVE_TOKEN_ADMIN", "")
+    # Administrador inicial, criado na primeira execução se o login ainda não existir.
+    # Se ANTEVE_ADMIN_SENHA for definida, a senha é redefinida para esse valor a cada inicialização.
+    admin_login: str = _env("ANTEVE_ADMIN_LOGIN", "joao.zocarato")
+    admin_senha: str = _env("ANTEVE_ADMIN_SENHA", "")
+    sessao_horas: int = int(_env("ANTEVE_SESSAO_HORAS", "12"))
     # DataJud: a chave pública é divulgada pelo CNJ e pode mudar a qualquer momento.
     datajud_url: str = _env("DATAJUD_URL", "https://api-publica.datajud.cnj.jus.br")
     datajud_api_key: str = _env("DATAJUD_API_KEY", "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==")

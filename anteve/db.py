@@ -7,6 +7,7 @@ import re
 import secrets
 import sqlite3
 import threading
+from datetime import timedelta
 
 from .normalize import agora, iso
 
@@ -85,6 +86,8 @@ CREATE TABLE IF NOT EXISTS amostra_controle(
   numero_cnj TEXT PRIMARY KEY, origem TEXT, incluido_em TEXT);
 CREATE TABLE IF NOT EXISTS usuarios(
   id INTEGER PRIMARY KEY, nome TEXT, papel TEXT, token_hash TEXT UNIQUE, ativo INTEGER DEFAULT 1, criado_em TEXT);
+CREATE TABLE IF NOT EXISTS sessoes(
+  id INTEGER PRIMARY KEY, usuario_id INTEGER, token_hash TEXT UNIQUE, criado_em TEXT, expira_em TEXT);
 CREATE TABLE IF NOT EXISTS estado(
   chave TEXT PRIMARY KEY, valor TEXT);
 CREATE TABLE IF NOT EXISTS preferencias(
@@ -102,6 +105,24 @@ PAPEIS = {
 
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+_ITERACOES_SENHA = 310000
+
+
+def hash_senha(senha, sal=None):
+    sal = sal or secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac("sha256", senha.encode(), bytes.fromhex(sal), _ITERACOES_SENHA).hex()
+    return f"pbkdf2_sha256${_ITERACOES_SENHA}${sal}${h}"
+
+
+def senha_confere(senha, armazenado):
+    try:
+        _, iteracoes, sal, h = armazenado.split("$")
+    except (AttributeError, ValueError):
+        return False
+    calc = hashlib.pbkdf2_hmac("sha256", senha.encode(), bytes.fromhex(sal), int(iteracoes)).hex()
+    return secrets.compare_digest(calc, h)
 
 
 # Chaves de conflito para traduzir "INSERT OR REPLACE" do SQLite em upsert do PostgreSQL
@@ -174,6 +195,19 @@ class DB:
                         cur.execute("SELECT pg_advisory_unlock(424242)")
             else:
                 self.con.executescript(ESQUEMA)
+            self._migrar()
+
+    def _migrar(self):
+        """Colunas acrescentadas depois da versão 1.0: login e senha dos usuários."""
+        if self.pg:
+            existentes = {r["column_name"] for r in self.todos(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='usuarios'")}
+        else:
+            existentes = {r["name"] for r in self.todos("PRAGMA table_info(usuarios)")}
+        for coluna in ("login", "senha_hash"):
+            if coluna not in existentes:
+                self.exec(f"ALTER TABLE usuarios ADD COLUMN {coluna} TEXT")
+        self.exec("CREATE UNIQUE INDEX IF NOT EXISTS usuarios_login ON usuarios(login)")
 
     # utilidades -------------------------------------------------------
     @staticmethod
@@ -232,19 +266,38 @@ class DB:
                    self.dump(detalhe or {})))
 
     # usuários --------------------------------------------------------
-    def criar_usuario(self, nome, papel, token=None):
+    def criar_usuario(self, nome, login, senha, papel):
         if papel not in PAPEIS:
             raise ValueError("papel inválido")
-        token = token or "ant_" + secrets.token_urlsafe(24)
-        self.exec("INSERT INTO usuarios(nome,papel,token_hash,criado_em) VALUES(?,?,?,?)",
-                  (nome, papel, hash_token(token), iso(agora())))
-        self.auditar("sistema", "usuario.criar", "usuario", nome, {"papel": papel})
+        login = login.strip().lower()
+        self.exec("INSERT INTO usuarios(nome,papel,login,senha_hash,criado_em) VALUES(?,?,?,?,?)",
+                  (nome, papel, login, hash_senha(senha), iso(agora())))
+        self.auditar("sistema", "usuario.criar", "usuario", login, {"papel": papel})
+
+    def definir_senha(self, login, senha):
+        self.exec("UPDATE usuarios SET senha_hash=? WHERE login=?", (hash_senha(senha), login.strip().lower()))
+        self.auditar("sistema", "usuario.senha", "usuario", login)
+
+    def autenticar(self, login, senha):
+        u = self.um("SELECT * FROM usuarios WHERE login=? AND ativo=1", ((login or "").strip().lower(),))
+        return u if u and senha_confere(senha or "", u["senha_hash"]) else None
+
+    def abrir_sessao(self, usuario_id, horas):
+        token = secrets.token_urlsafe(32)
+        self.exec("INSERT INTO sessoes(usuario_id,token_hash,criado_em,expira_em) VALUES(?,?,?,?)",
+                  (usuario_id, hash_token(token), iso(agora()), iso(agora() + timedelta(hours=horas))))
         return token
 
+    def encerrar_sessao(self, token):
+        if token:
+            self.exec("DELETE FROM sessoes WHERE token_hash=?", (hash_token(token),))
+
     def usuario_por_token(self, token):
+        """Usuário dono de uma sessão aberta pelo login e ainda válida."""
         if not token:
             return None
-        return self.um("SELECT * FROM usuarios WHERE token_hash=? AND ativo=1", (hash_token(token),))
+        return self.um("SELECT u.* FROM sessoes s JOIN usuarios u ON u.id=s.usuario_id "
+                       "WHERE s.token_hash=? AND s.expira_em>? AND u.ativo=1", (hash_token(token), iso(agora())))
 
 
 class _Transacao:

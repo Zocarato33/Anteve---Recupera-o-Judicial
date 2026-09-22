@@ -12,20 +12,18 @@ Requisitos: Python 3.11 ou superior. O servidor deve estar no Brasil, porque a A
 
 ```bash
 pip install -r requirements.txt
-python -m anteve.cli iniciar --nome "Administrador" --papel admin   # guarde o token exibido
 python -m anteve.cli tpu                                            # sincroniza a TPU com o SGT/CNJ
 python -m anteve.cli reconciliar --dias 365                         # carga inicial de 12 meses
 python -m anteve.cli servir --porta 8000                            # painel, API e agendador
 ```
 
-Abra `http://servidor:8000`, informe o token e use o painel. A documentação interativa da API fica em `/docs`.
+Abra `http://servidor:8000` e entre com usuário e senha. O administrador inicial é criado automaticamente (veja Login e senha). A documentação interativa da API fica em `/docs`.
 
 Com Docker:
 
 ```bash
 docker build -t anteve .
 docker run -d -p 8000:8000 -v anteve_dados:/app/data --env-file .env anteve
-docker exec -it <container> python -m anteve.cli iniciar --nome "Administrador" --papel admin
 ```
 
 ## Publicação no GitHub e no Vercel
@@ -65,19 +63,18 @@ Crie o repositório como **privado**. A aba Actions mostrará o workflow Testes 
 2. Em Settings > Environment Variables, configure:
    * `DATABASE_URL`: URL do pooler.
    * `CRON_SECRET`: um valor longo e aleatório, por exemplo gerado com `openssl rand -hex 32`.
-   * `ANTEVE_TOKEN_ADMIN`: outro valor aleatório. Ele vira o token do administrador, criado na primeira execução. É esse valor que se digita na tela de login.
+   * `ANTEVE_ADMIN_SENHA`: senha do administrador `joao.zocarato`. Se definida, substitui a senha inicial a cada deploy.
    * `ANTEVE_IPS_PERMITIDOS`: IPs autorizados, separados por vírgula. O padrão já traz os IPs da SBK (186.193.236.194 e 179.191.112.34).
    * Opcionais: `ANTHROPIC_API_KEY` e as variáveis de SMTP.
 3. Faça o deploy e confira `https://<projeto>.vercel.app/api/saude`. A resposta deve mostrar `"banco": "postgresql"` e `"persistente": true`.
 
-### 4. Carga inicial e primeiro usuário
+### 4. Carga inicial
 
 Estes comandos rodam uma única vez, da sua máquina, apontando para o mesmo banco:
 
 ```bash
 pip install -r requirements.txt
 export DATABASE_URL="<URL direta, porta 5432>"
-python -m anteve.cli iniciar --nome "Administrador" --papel admin   # guarde o token
 python -m anteve.cli tpu
 python -m anteve.cli reconciliar --dias 365
 ```
@@ -119,7 +116,11 @@ O painel e a API só respondem aos IPs de `ANTEVE_IPS_PERMITIDOS`. Qualquer outr
 | comercial | ler e operar o funil de oportunidades |
 | leitor | apenas consultar |
 
-Crie usuários com `python -m anteve.cli iniciar --nome "Nome" --papel analista`. Tokens são guardados apenas como hash.
+Crie usuários com `python -m anteve.cli iniciar --nome "Nome" --login nome.sobrenome --senha "..." --papel analista`.
+
+## Login e senha
+
+O acesso é por usuário e senha. Na primeira execução o sistema cria o administrador definido em `ANTEVE_ADMIN_LOGIN` (padrão `joao.zocarato`) com a senha inicial `1234`. Troque essa senha definindo `ANTEVE_ADMIN_SENHA` no Vercel e fazendo um novo deploy. Senhas são guardadas apenas como hash PBKDF2. Cada login abre uma sessão que expira em `ANTEVE_SESSAO_HORAS` (padrão 12). Tentativas de login, com acerto ou falha, ficam na auditoria com o IP de origem.
 
 ## Rotina automática
 

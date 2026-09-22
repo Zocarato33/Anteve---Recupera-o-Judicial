@@ -210,10 +210,14 @@ function render(){
   const raiz=$("#raiz");
   if(!SNAP && !EU){
     raiz.innerHTML=`<div class="login"><div class="marca" style="color:var(--texto)">${MARCA}<span class="nome">Antevê</span></div>
-      <h1 style="font-size:22px">Entrar</h1><p class="sub">Informe o token de acesso fornecido pelo administrador.</p>
-      <div class="formulario"><label>Token<input class="campo" id="tk" type="password" autocomplete="off"></label>
-      <button class="btn" id="entrar">Entrar</button></div></div>`;
-    $("#entrar").onclick=async()=>{TOKEN=$("#tk").value.trim(); try{EU=await api("/api/eu"); guardar("anteve_token",TOKEN); render();}catch(e){toast(e.message)}};
+      <h1 style="font-size:22px">Entrar</h1><p class="sub">Informe seu usuário e senha.</p>
+      <form class="formulario" id="form-login"><label>Usuário<input class="campo" id="lg" autocomplete="username" autocapitalize="none" required></label>
+      <label>Senha<input class="campo" id="sn" type="password" autocomplete="current-password" required></label>
+      <button class="btn" id="entrar" type="submit">Entrar</button></form></div>`;
+    $("#form-login").onsubmit=async ev=>{ev.preventDefault();
+      try{const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({login:$("#lg").value.trim(),senha:$("#sn").value})});
+        if(!r.ok) throw new Error(r.status===401?"usuário ou senha inválidos":("erro "+r.status));
+        TOKEN=(await r.json()).token; EU=await api("/api/eu"); guardar("anteve_token",TOKEN); render();}catch(e){toast(e.message)}};
     return;
   }
   raiz.innerHTML=`<div class="app"><nav class="lateral" aria-label="Seções">
@@ -222,7 +226,7 @@ function render(){
     <div class="nav-rodape">${SNAP?`Prévia gerada em ${dth(SNAP.gerado_em)}`:`${esc(EU.nome)} (${esc(EU.papel)})<br><button id="sair">Sair</button>`}</div>
   </nav><main id="main" tabindex="-1"></main></div>`;
   document.querySelectorAll("nav.lateral button[data-v]").forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
-  if($("#sair")) $("#sair").onclick=()=>{guardar("anteve_token",null);TOKEN=null;EU=null;render();};
+  if($("#sair")) $("#sair").onclick=()=>{fetch("/api/logout",{method:"POST",headers:{"X-Token":TOKEN||""}}).catch(()=>{});guardar("anteve_token",null);TOKEN=null;EU=null;render();};
   VISTAS[VIEW]();
   contadores();
 }
