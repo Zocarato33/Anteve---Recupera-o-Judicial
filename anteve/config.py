@@ -1,4 +1,5 @@
 """Configuração central. Todos os parâmetros são ajustáveis por variável de ambiente."""
+import hashlib
 import os
 from dataclasses import dataclass, field
 
@@ -41,6 +42,9 @@ class Config:
     admin_login: str = _env("ANTEVE_ADMIN_LOGIN", "joao.zocarato")
     admin_senha: str = _env("ANTEVE_ADMIN_SENHA", "")
     sessao_horas: int = int(_env("ANTEVE_SESSAO_HORAS", "12"))
+    # Chave que assina as sessões. Sem ANTEVE_SEGREDO, usa o CRON_SECRET ou a URL do banco (que contém a senha).
+    segredo_sessao: str = (_env("ANTEVE_SEGREDO", "") or _env("CRON_SECRET", "") or hashlib.sha256(
+        ("anteve:" + (os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or "local")).encode()).hexdigest())
     # DataJud: a chave pública é divulgada pelo CNJ e pode mudar a qualquer momento.
     datajud_url: str = _env("DATAJUD_URL", "https://api-publica.datajud.cnj.jus.br")
     datajud_api_key: str = _env("DATAJUD_API_KEY", "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==")
