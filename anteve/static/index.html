@@ -126,6 +126,19 @@ tbody tr:hover{background:rgba(42,124,121,.07)}
   main.fixo>*{flex-shrink:0}
   main.fixo>.tabela-wrap{flex:1 1 auto;min-height:0;overflow:auto}
 }
+/* inteligência pré-recuperação judicial: faixas do guia em cinco tons do espectro verde e cinza */
+.fx{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600;white-space:nowrap;border:1.5px solid transparent}
+.fx.MONITORAMENTO{border-color:var(--linha);color:var(--texto2)}
+.fx.ATENCAO{border:1.5px dashed var(--st-prov);color:var(--st-prov)}
+.fx.RISCO_RELEVANTE{border-color:var(--ciano);color:var(--texto)}
+.fx.RISCO_ELEVADO{background:var(--ciano-esc);color:#fff}
+.fx.SINAL_CRITICO{background:var(--verde);color:#fff;box-shadow:0 0 0 2px var(--ciano)}
+:root[data-theme="dark"] .fx.SINAL_CRITICO{background:#ECEFF3;color:#012824}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .fx.SINAL_CRITICO{background:#ECEFF3;color:#012824}}
+.abas{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.score-num{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.fatores td,.fatores th{font-size:12.5px;padding:7px 8px}
+.fatores table{min-width:0}
 .manual-busca textarea{width:100%;min-height:74px;resize:vertical;font:inherit}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
 .chip{cursor:pointer;border:1px solid var(--linha);background:var(--superficie);color:var(--texto);border-radius:999px;padding:4px 12px;font-size:13px}
@@ -220,7 +233,7 @@ function snapApi(caminho, opts){
 
 /* ---------- estrutura ---------- */
 const VISOES = [["painel","Novas recuperações"],["outros","Falência e extrajudicial"],["revisao","Revisão humana"],["preventivo","Preventivo"],
-  ["alertas","Alertas"],["fontes","Fontes e saúde"],["metricas","Métricas"],["preferencias","Preferências"],["usuarios","Usuários"],["manual","Manual"]];
+  ["alertas","Alertas"],["fontes","Fontes e saúde"],["metricas","Métricas"],["preferencias","Preferências"],["sinais","Sinais de recuperação"],["usuarios","Usuários"],["manual","Manual"]];
 const MARCA = `<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="2" y="7" width="17" height="21" rx="4" fill="#2A7C79" opacity=".75"/><rect x="11" y="2" width="17" height="21" rx="4" fill="#ECEFF3"/></svg>`;
 
 function render(){
@@ -239,7 +252,7 @@ function render(){
   }
   raiz.innerHTML=`<div class="app"><nav class="lateral" aria-label="Seções">
     <div class="marca">${MARCA}<span class="nome">Antevê</span><span class="pill">IA</span></div>
-    ${VISOES.filter(([v])=>!(v==="preventivo"&&!pode("preventivo"))&&!(v==="revisao"&&!pode("revisar"))&&!(v==="usuarios"&&(SNAP||!pode("administrar")))&&!(v==="manual"&&SNAP)).map(([v,n])=>`<button data-v="${v}" ${VIEW===v?'aria-current="page"':""}><span>${n}</span><span class="cont" id="c-${v}"></span></button>`).join("")}
+    ${VISOES.filter(([v])=>!(v==="preventivo"&&!pode("preventivo"))&&!(v==="revisao"&&!pode("revisar"))&&!(v==="usuarios"&&(SNAP||!pode("administrar")))&&!(v==="manual"&&SNAP)&&!(v==="sinais"&&(SNAP||!pode("preventivo")))).map(([v,n])=>`<button data-v="${v}" ${VIEW===v?'aria-current="page"':""}><span>${n}</span><span class="cont" id="c-${v}"></span></button>`).join("")}
     <div class="nav-rodape">${SNAP?`Prévia gerada em ${dth(SNAP.gerado_em)}`:`${esc(EU.nome)} (${esc(EU.papel)})<br><button id="sair">Sair</button>`}</div>
   </nav><main id="main" tabindex="-1"></main></div>`;
   document.querySelectorAll("nav.lateral button[data-v]").forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
@@ -644,7 +657,154 @@ async function vistaManual(){
   main.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{$("#mq").value=c.dataset.q;$("#msec").value="";perguntar();});
 }
 
-const VISTAS={painel:()=>vistaLista("rj"),outros:()=>vistaLista("outros"),revisao:vistaRevisao,preventivo:vistaPreventivo,alertas:vistaAlertas,fontes:vistaFontes,metricas:vistaMetricas,preferencias:vistaPreferencias,usuarios:vistaUsuarios,manual:vistaManual};
+/* ---------- inteligência pré-recuperação judicial ---------- */
+const FX_NOME={MONITORAMENTO:"Monitoramento",ATENCAO:"Atenção",RISCO_RELEVANTE:"Risco relevante",RISCO_ELEVADO:"Risco elevado",SINAL_CRITICO:"Sinal crítico"};
+let PRE_REF=null;
+const fxPill=(c)=>`<span class="fx ${esc(c)}">${esc(FX_NOME[c]||c)}</span>`;
+const linkSeguro=(u,t)=>/^https?:\/\//i.test(u||"")?`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a>`:"";
+async function refPre(){ if(!PRE_REF) PRE_REF=await api("/api/pre/referencias"); return PRE_REF; }
+function avisoPre(){ return `<div class="alerta-nc"><b>Análise preventiva pré-processual. Recuperação judicial não confirmada.</b> Indicador probabilístico para análise especializada, com base apenas em dados empresariais, financeiros, regulatórios e públicos anteriores a qualquer pedido. Listas de risco não podem ser divulgadas, e o contato automático é proibido.</div>`; }
+async function vistaSinais(){
+  const main=$("#main"); const aba=CACHE.preAba||"empresas";
+  main.innerHTML=cab("Inteligência Pré-Recuperação Judicial","Empresas com sinais públicos de estresse financeiro, operacional, societário ou reputacional, antes de qualquer judicialização.",
+    `<div class="filtros" style="margin:0"><button class="btn sec" id="pnova">Monitorar empresa</button><button class="btn" id="pcvm">Buscar sinais na CVM</button></div>`)+avisoPre()+
+    `<div class="abas">${[["empresas","Empresas monitoradas"],["candidatos","Sinais para revisão"],["metodologia","Metodologia"]].map(([k,n])=>`<button class="btn ${aba===k?"":"sec"}" data-aba="${k}">${n}<span id="cnt-${k}"></span></button>`).join("")}</div><div id="pconteudo"><div class="vazio">Carregando</div></div>`;
+  main.querySelectorAll("[data-aba]").forEach(b=>b.onclick=()=>{CACHE.preAba=b.dataset.aba;vistaSinais();});
+  $("#pnova").onclick=novaEmpresaPre;
+  $("#pcvm").onclick=async()=>{const b=$("#pcvm"); b.disabled=true; b.textContent="Lendo comunicados da CVM";
+    try{const r=await api("/api/pre/cvm",{method:"POST",body:"{}"}); toast(`${r.linhas_lidas} comunicados lidos; ${r.candidatos_novos} sinais para revisão; ${r.empresas_novas} empresas incluídas`); CACHE.preAba="candidatos";}catch(e){toast(e.message)}
+    vistaSinais();};
+  if(aba==="metodologia") return metodologiaPre();
+  if(aba==="candidatos") return candidatosPre();
+  const f=CACHE.preF||(CACHE.preF={faixa:"",q:""});
+  let d; try{d=await api("/api/pre/empresas?"+new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([,v])=>v))));}catch(e){$("#pconteudo").innerHTML=`<div class="vazio">${esc(e.message)}</div>`;return;}
+  if(d.candidatos_pendentes) $("#cnt-candidatos").textContent=` (${d.candidatos_pendentes})`;
+  $("#pconteudo").innerHTML=`<div class="camadas">${Object.keys(FX_NOME).map(k=>`<div class="camada"><div class="r">${fxPill(k)}</div><div class="n">${d.por_faixa[k]||0}</div></div>`).join("")}
+      <div class="camada"><div class="r">Revisões pendentes</div><div class="n">${d.revisoes_pendentes}</div><div class="r">a partir de Risco relevante</div></div></div>
+    <div class="filtros"><input type="search" id="pq" placeholder="Buscar por razão social ou CNPJ" value="${esc(f.q)}">
+      <select id="pfx"><option value="">Todas as faixas</option>${Object.entries(FX_NOME).map(([k,n])=>`<option value="${k}">${n}</option>`).join("")}</select></div>
+    <div class="tabela-wrap">${d.empresas.length?`<table><thead><tr><th>Empresa e CNPJ</th><th>Score e faixa</th><th>Dimensões</th><th>Tendência (30 dias)</th><th>Revisão</th><th>Origem</th></tr></thead><tbody>
+      ${d.empresas.map(e=>`<tr data-cnpj="${esc(e.cnpj)}"><td><b>${esc(e.razao_social||"Razão social não informada")}</b><div class="fraco">${esc(e.cnpj_formatado)}${e.uf?` | ${esc(e.municipio||"")}/${esc(e.uf)}`:""}</div>
+        ${e.fora_escopo?`<div class="bloq">fora do escopo pré-processual</div>`:""}${e.alerta_bloqueado?`<div class="bloq">identidade incerta: alerta bloqueado</div>`:""}</td>
+        <td><span class="score-num">${e.score}</span> ${fxPill(e.faixa.codigo)}<div class="fraco">${e.sinais_ativos} sinal(is) ativo(s)${e.candidatos?` | ${e.candidatos} para revisão`:""}</div></td>
+        <td class="fraco">${e.dimensoes.map(x=>esc((PRE_REF&&PRE_REF.dimensoes[x])||x)).join(", ")||"nenhuma"}</td>
+        <td>${esc(e.tendencia||"estável")}</td>
+        <td class="fraco">${e.revisao_status==="PENDENTE"?"<b>pendente</b>":e.revisao_status==="ANALISE_CONFIRMADA"?"análise confirmada":e.revisao_status==="ALERTA_DESCARTADO"?"alerta descartado":"não exigida"}</td>
+        <td class="fraco">${esc(e.origem||"")}</td></tr>`).join("")}</tbody></table>`:`<div class="vazio">Nenhuma empresa monitorada. Use Monitorar empresa ou Buscar sinais na CVM.</div>`}</div>`;
+  $("#pfx").value=f.faixa; $("#pfx").onchange=e=>{f.faixa=e.target.value;vistaSinais();};
+  let tq; $("#pq").oninput=e=>{clearTimeout(tq);tq=setTimeout(()=>{f.q=e.target.value;vistaSinais();},400)};
+  document.querySelectorAll("tbody tr[data-cnpj]").forEach(tr=>tr.onclick=()=>abrirPre(tr.dataset.cnpj));
+  refPre().catch(()=>{});
+}
+function novaEmpresaPre(){
+  refPre().then(ref=>{
+    const g=$("#gaveta"); g.classList.add("aberta"); $("#veu").classList.add("on"); g.setAttribute("aria-hidden","false");
+    g.innerHTML=`<button class="btn sec fechar" id="fg">Fechar</button><h2>Monitorar empresa</h2>
+      <p class="fraco">A unidade de análise é a empresa identificada por CNPJ. O cadastro é consultado na Receita Federal.</p>
+      <div class="formulario"><label>CNPJ<input class="campo" id="ncnpj" placeholder="00.000.000/0000-00"></label>
+      <label>Evidência de identidade<select class="campo" id="nevid">${Object.entries(ref.identidade).map(([k,v])=>`<option value="${k}">${esc(v.nome)} (confiança ${v.valor.toFixed(2)})</option>`).join("")}</select></label>
+      <button class="btn" id="nsalvar">Incluir na lista monitorada</button></div>`;
+    $("#fg").onclick=fecharGaveta;
+    $("#nsalvar").onclick=async()=>{try{const d=await api("/api/pre/empresas",{method:"POST",body:JSON.stringify({cnpj:$("#ncnpj").value,evidencia_identidade:$("#nevid").value})});toast("Empresa incluída");abrirPre(d.cnpj);vistaSinais();}catch(e){toast(e.message)}};
+  }).catch(e=>toast(e.message));
+}
+async function abrirPre(cnpj){
+  const g=$("#gaveta"); g.innerHTML=`<div class="vazio">Carregando</div>`; g.classList.add("aberta"); $("#veu").classList.add("on"); g.setAttribute("aria-hidden","false");
+  let d,ref; try{[d,ref]=await Promise.all([api("/api/pre/empresas/"+encodeURIComponent(cnpj)),refPre()]);}catch(e){g.innerHTML=`<div class="vazio">${esc(e.message)}</div>`;return;}
+  const c=d.calculo||{};
+  const nomeDim=x=>ref.dimensoes[x]||x;
+  g.innerHTML=`<button class="btn sec fechar" id="fg">Fechar</button>
+    <div>${fxPill(d.faixa.codigo)} <span class="score-num" style="margin-left:6px">${d.score}</span> <span class="fraco">de 100 | tendência ${esc(d.tendencia||"estável")}${c.score_30_dias!=null?` (há 30 dias: ${c.score_30_dias})`:""}</span></div>
+    <h2>${esc(d.razao_social||"Razão social não informada")}</h2><div class="fraco">${esc(d.cnpj_formatado)} | ${esc(d.origem||"")}</div>
+    <div class="item" style="margin-top:12px"><div class="t">${esc(d.faixa.linguagem)}</div><div class="fraco">Ação: ${esc(d.faixa.acao)}</div></div>
+    ${d.fora_escopo?`<div class="alerta-nc">${esc(d.fora_escopo)}</div>`:""}
+    ${c.alerta_bloqueado?`<div class="alerta-nc">Identidade com confiança abaixo de 0,80: alerta bloqueado até confirmar o CNPJ.</div>`:""}
+    <h3>Cadastro e identidade</h3><dl class="grade">
+      <dt>Município</dt><dd>${esc([d.municipio,d.uf].filter(Boolean).join("/")||"não informado")}</dd>
+      <dt>CNAE</dt><dd>${esc(d.cadastro.cnae||"não informado")}</dd><dt>Porte</dt><dd>${esc(d.cadastro.porte||"não informado")}</dd>
+      <dt>Situação cadastral</dt><dd>${esc(d.cadastro.situacao_cadastral||"não informada")}</dd>
+      <dt>Identidade</dt><dd>${esc(d.evidencia_identidade||"")} | confiança ${(d.confianca_identidade||0).toFixed(2)}</dd></dl>
+    <h3>Composição do score</h3>
+    <div class="item fraco">Soma dos sinais ${c.soma_pontos??0} + corroboração ${c.corroboracao??0} (${(c.dimensoes||[]).length} dimensão(ões): ${(c.dimensoes||[]).map(nomeDim).join(", ")||"nenhuma"}) menos penalidade ${c.penalidade??0}${(c.motivos_penalidade||[]).length?` (${c.motivos_penalidade.map(esc).join("; ")})`:""}${c.salvaguarda?`<div><b>Proteção aplicada:</b> ${esc(c.salvaguarda)}</div>`:""}<div>Fórmula ${esc(c.versao||"")}: pontos = peso × confiança da fonte × materialidade × atualidade.</div></div>
+    ${(c.fatores||[]).length?`<div class="tabela-wrap fatores"><table><thead><tr><th>Sinal</th><th>Peso</th><th>Conf.</th><th>Mat.</th><th>Atual.</th><th>Pontos</th></tr></thead><tbody>
+      ${c.fatores.map(f=>`<tr><td>${esc(f.descricao)}<div class="fraco">${esc(nomeDim(f.dimensao))} | ${dt(f.data_evento)}${f.motivo?` | ${esc(f.motivo)}`:""}</div></td><td>${f.peso}</td><td>${f.confianca_fonte}</td><td>${f.materialidade}</td><td>${f.atualidade??"-"}</td><td><b>${f.pontos}</b></td></tr>`).join("")}</tbody></table></div>`:`<div class="fraco">Nenhum sinal registrado.</div>`}
+    ${d.score>=45||d.revisao_status?`<h3>Revisão humana</h3><div class="item">${d.revisao_status==="PENDENTE"?"<b>Revisão pendente para a faixa atual.</b>":`Situação: ${esc(d.revisao_status||"não exigida")}`}
+      <div class="formulario" style="margin-top:8px"><input class="campo" id="rjust" placeholder="Justificativa (obrigatória)">
+      <div class="filtros" style="margin:0"><button class="btn sec" data-rev="ANALISE_CONFIRMADA">Confirmar análise</button><button class="btn sec" data-rev="ALERTA_DESCARTADO">Descartar alerta</button></div></div>
+      ${d.revisoes.map(r=>`<div class="fraco">${dth(r.decidido_em)} | ${esc(r.analista)}: ${esc(r.decisao==="ANALISE_CONFIRMADA"?"análise confirmada":"alerta descartado")} (${esc(FX_NOME[r.faixa]||r.faixa)}, ${r.score}) | ${esc(r.justificativa)}</div>`).join("")}</div>`:""}
+    <h3>Sinais e evidências</h3>
+    ${d.sinais.map(s=>`<div class="item"><div class="t">${esc((ref.catalogo.find(x=>x.codigo===s.codigo)||{}).descricao||s.codigo)}</div>
+      <div class="fraco">${esc(nomeDim(s.dimensao))} | evento em ${dt(s.data_evento)} | ${esc(s.fonte)} ${linkSeguro(s.url,"fonte")} | ${esc(s.status==="ATIVO"?"ativo":s.status.toLowerCase())}</div>
+      <div style="margin-top:4px">"${esc(s.trecho_original)}"</div>${s.divergencia?`<div class="bloq">Divergência: ${esc(s.divergencia)}</div>`:""}
+      <div class="filtros" style="margin:6px 0 0">${s.status==="ATIVO"?`<button class="btn sec" data-st="ESCLARECIDO" data-sid="${s.id}">Marcar como esclarecido</button><button class="btn sec" data-st="REVERTIDO" data-sid="${s.id}">Marcar como revertido</button>`:`<button class="btn sec" data-st="ATIVO" data-sid="${s.id}">Reativar</button>`}</div></div>`).join("")||`<div class="fraco">Nenhum sinal.</div>`}
+    ${d.candidatos.filter(x=>x.status==="PENDENTE").length?`<div class="fraco">Há ${d.candidatos.filter(x=>x.status==="PENDENTE").length} comunicado(s) da CVM aguardando revisão na aba Sinais para revisão.</div>`:""}
+    ${d.fora_escopo?"":`<details><summary>Registrar sinal</summary><div class="formulario">
+      <label>Sinal<select class="campo" id="scod">${ref.catalogo.map(x=>`<option value="${x.codigo}">${esc(x.descricao)} (peso ${x.peso}, ${x.validade} dias)</option>`).join("")}</select></label>
+      <label>Confiança da fonte<select class="campo" id="sconf">${Object.entries(ref.confianca).map(([k,v])=>`<option value="${k}">${esc(v.nome)} (${v.valor})</option>`).join("")}</select></label>
+      <label>Materialidade<select class="campo" id="smat">${Object.entries(ref.materialidade).map(([k,v])=>`<option value="${k}" ${k==="MEDIA"?"selected":""}>${esc(v.nome)} (${v.valor})</option>`).join("")}</select></label>
+      <label>Data do evento<input class="campo" id="sdata" type="date"></label>
+      <label>Fonte<input class="campo" id="sfonte" placeholder="Ex.: Fato relevante na CVM, relatório de auditoria"></label>
+      <label>URL da fonte<input class="campo" id="surl" placeholder="https://"></label>
+      <label>Trecho original (obrigatório; o resumo não vale como evidência)<textarea class="campo" id="strecho" rows="3"></textarea></label>
+      <label>Divergência (se houver)<input class="campo" id="sdiv"></label>
+      <p class="fraco">Fontes judiciais (tribunais, diários de justiça, processos, pedidos de falência ou de recuperação) são recusadas.</p>
+      <button class="btn" id="ssalvar">Registrar sinal</button></div></details>`}
+    <p class="fraco" style="margin-top:22px">${esc(c.aviso||"")}</p>`;
+  $("#fg").onclick=fecharGaveta;
+  g.querySelectorAll("[data-rev]").forEach(b=>b.onclick=async()=>{try{await api(`/api/pre/empresas/${d.cnpj}/revisao`,{method:"POST",body:JSON.stringify({decisao:b.dataset.rev,justificativa:$("#rjust").value})});toast("Revisão registrada");abrirPre(d.cnpj);vistaSinais();}catch(e){toast(e.message)}});
+  g.querySelectorAll("[data-st]").forEach(b=>b.onclick=async()=>{const j=prompt("Justificativa (mínimo 10 caracteres):"); if(j===null) return;
+    try{await api(`/api/pre/sinais/${b.dataset.sid}/status`,{method:"POST",body:JSON.stringify({status:b.dataset.st,justificativa:j})});toast("Sinal atualizado");abrirPre(d.cnpj);vistaSinais();}catch(e){toast(e.message)}});
+  if($("#ssalvar")) $("#ssalvar").onclick=async()=>{try{await api(`/api/pre/empresas/${d.cnpj}/sinais`,{method:"POST",body:JSON.stringify({codigo:$("#scod").value,confianca:$("#sconf").value,materialidade:$("#smat").value,data_evento:$("#sdata").value,fonte:$("#sfonte").value,url:$("#surl").value,trecho_original:$("#strecho").value,divergencia:$("#sdiv").value||null})});toast("Sinal registrado");abrirPre(d.cnpj);vistaSinais();}catch(e){toast(e.message)}};
+}
+async function candidatosPre(){
+  let l,ref; try{[l,ref]=await Promise.all([api("/api/pre/candidatos"),refPre()]);}catch(e){$("#pconteudo").innerHTML=`<div class="vazio">${esc(e.message)}</div>`;return;}
+  $("#cnt-candidatos").textContent=l.length?` (${l.length})`:"";
+  $("#pconteudo").innerHTML=`<p class="fraco">Comunicados de companhias abertas encontrados na CVM pelo dicionário textual do guia. Nenhum deles pontua até a aprovação de um analista, que confirma o sinal, a confiança e a materialidade.</p>`+(l.length?l.map(c=>`<div class="item">
+      <div class="t">${esc(c.razao_social||"")}</div><div class="fraco">${esc(cnpjFmt(c.cnpj))} | ${esc(c.categoria_fonte)} entregue em ${dt(c.data_evento)} | ${linkSeguro(c.url,"abrir documento na CVM")}</div>
+      <div style="margin:6px 0">${esc(c.assunto)}</div><div class="fraco">Termos encontrados: ${esc(JSON.parse(c.termos||"[]").join(", "))} | categoria sugerida: ${esc(c.categoria_sugerida)}</div>
+      <div class="filtros" style="margin:8px 0 0"><select class="campo" data-cod="${c.id}"><option value="">Escolha o sinal</option>${ref.catalogo.map(x=>`<option value="${x.codigo}" ${x.codigo===c.codigo_sugerido?"selected":""}>${esc(x.descricao)} (${x.peso})</option>`).join("")}</select>
+        <select class="campo" data-conf="${c.id}">${Object.entries(ref.confianca).map(([k,v])=>`<option value="${k}">${esc(v.nome)}</option>`).join("")}</select>
+        <select class="campo" data-mat="${c.id}">${Object.entries(ref.materialidade).map(([k,v])=>`<option value="${k}" ${k==="MEDIA"?"selected":""}>Materialidade ${esc(v.nome.toLowerCase())}</option>`).join("")}</select></div>
+      <div class="filtros" style="margin:8px 0 0"><input class="campo" style="flex:1;min-width:220px" placeholder="Justificativa (obrigatória)" data-j="${c.id}">
+        <button class="btn sec" data-ok="${c.id}">Aprovar sinal</button><button class="btn sec" data-no="${c.id}">Descartar</button></div></div>`).join("")
+    :`<div class="vazio">Nenhum sinal aguardando revisão. Use Buscar sinais na CVM.</div>`);
+  const decidir=async(id,aprovar)=>{try{await api(`/api/pre/candidatos/${id}`,{method:"POST",body:JSON.stringify({aprovar,justificativa:$(`[data-j="${id}"]`).value,codigo:$(`[data-cod="${id}"]`).value||null,confianca:$(`[data-conf="${id}"]`).value,materialidade:$(`[data-mat="${id}"]`).value})});toast(aprovar?"Sinal aprovado e somado ao score":"Comunicado descartado");candidatosPre();}catch(e){toast(e.message)}};
+  $("#pconteudo").querySelectorAll("[data-ok]").forEach(b=>b.onclick=()=>decidir(b.dataset.ok,true));
+  $("#pconteudo").querySelectorAll("[data-no]").forEach(b=>b.onclick=()=>decidir(b.dataset.no,false));
+}
+const cnpjFmt=c=>(c||"").length===14?`${c.slice(0,2)}.${c.slice(2,5)}.${c.slice(5,8)}/${c.slice(8,12)}-${c.slice(12)}`:(c||"");
+async function metodologiaPre(){
+  let ref; try{ref=await refPre();}catch(e){$("#pconteudo").innerHTML=`<div class="vazio">${esc(e.message)}</div>`;return;}
+  const tab=(cab,linhas)=>`<div class="tabela-wrap" style="margin-bottom:14px"><table style="min-width:640px"><thead><tr>${cab.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>${linhas.map(l=>`<tr style="cursor:default">${l.map(x=>`<td>${x}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  $("#pconteudo").innerHTML=`<div style="max-width:980px">
+    <p>Previsibilidade significa identificar uma combinação atípica de sinais anteriores ao pedido, comparando a empresa com o próprio histórico. Não significa antecipar uma decisão privada com certeza. Base: Guia Nacional de Inteligência Pré Recuperação Judicial, versão 2.0.</p>
+    <h3 style="color:var(--destaque)">Faixas, linguagem permitida e ação</h3>${tab(["Score","Faixa","Linguagem permitida","Ação"],ref.faixas.map((f,i,a)=>[`${f.inicio} a ${i<a.length-1?a[i+1].inicio-1:100}`,fxPill(f.codigo),esc(f.linguagem),esc(f.acao)]))}
+    <h3 style="color:var(--destaque)">Catálogo de sinais</h3>${tab(["Sinal","Dimensão","Peso inicial","Validade","Fonte mínima"],ref.catalogo.map(x=>[esc(x.descricao),esc(x.dimensao),x.peso,`${x.validade} dias`,esc(x.fonte_minima)]))}
+    <h3 style="color:var(--destaque)">Fórmula (${esc(ref.versao)})</h3>
+    <div class="item">pontos = peso × confiança da fonte × materialidade × atualidade<br>corroboração = 5 pontos por dimensão independente adicional, até 15<br>penalidade = 5 por sinal com divergência (até 15) e 10 quando a identidade tem confiança abaixo de 0,80<br>score final = limitar(soma dos pontos + corroboração - penalidade, 0, 100)<br>atualidade = decaimento linear de 1 (evento de hoje) a 0 (fim da validade)</div>
+    ${tab(["Confiança da fonte","Valor"],Object.values(ref.confianca).map(v=>[esc(v.nome),v.valor]))}
+    ${tab(["Materialidade","Valor"],Object.values(ref.materialidade).map(v=>[esc(v.nome),v.valor]))}
+    <h3 style="color:var(--destaque)">Proteções</h3><div class="item">
+      <div>Risco elevado ou sinal crítico exigem duas dimensões independentes, salvo evento financeiro inequívoco (comunicado de reestruturação ou default de fonte primária ou oficial).</div>
+      <div>Decaimento temporal e retirada de eventos esclarecidos ou revertidos.</div>
+      <div>Peso agregado de notícias e sinais reputacionais limitado a 6 pontos.</div>
+      <div>Setor, região e porte não são usados como indício negativo.</div>
+      <div>Contribuição de cada sinal e versão da fórmula registradas em cada cálculo.</div>
+      <div>Listas de risco não são exportadas nem divulgadas, e o contato automático é proibido.</div>
+      <div>A partir de Risco relevante, a análise humana é obrigatória, e ela volta à fila quando a faixa muda.</div></div>
+    <h3 style="color:var(--destaque)">Resolução de identidade</h3>${tab(["Evidência","Confiança máxima"],Object.values(ref.identidade).map(v=>[esc(v.nome),v.valor.toFixed(2)]))}
+    <div class="fraco" style="margin:-6px 0 14px">Alerta bloqueado quando a confiança de identidade for inferior a 0,80.</div>
+    <h3 style="color:var(--destaque)">Fontes</h3>${tab(["Fonte","Situação","Sinais"],[
+      ["CVM Dados Abertos (IPE)","Integrada: botão Buscar sinais na CVM","Fatos relevantes, comunicados, assembleias e avisos com termos de reestruturação, default, waiver, covenant, continuidade e ativos"],
+      ["Receita Federal CNPJ","Integrada: consulta cadastral na inclusão","Razão social, CNAE, porte, município e situação cadastral"],
+      ["Relações com Investidores, auditoria, agentes fiduciários e ratings","Registro manual com trecho original","Renegociação, default, continuidade operacional, rebaixamento"],
+      ["PGFN, PNCP, DOU, CGU e juntas","Próximas fases do roteiro","Dívida ativa, contratos públicos, sanções e alterações societárias"],
+      ["Protestos, bureaus e notícias licenciadas","Somente com contrato e finalidade autorizada","Restrições, protestos e notícias confirmadas em fonte primária"]])}
+    <h3 style="color:var(--destaque)">Dados excluídos do módulo</h3><div class="item">DataJud e qualquer API processual; portais de tribunais; diários de justiça; classes, assuntos e movimentações; pedidos de falência; tutelas antecedentes; execuções, cobranças e ações trabalhistas; recuperações protocoladas ou deferidas; SCR e Registrato sem autorização; SPED, ECD, ECF e eSocial. Empresas cuja razão social indica recuperação judicial ou falência ficam marcadas como fora do escopo.</div>
+    <p class="fraco">${esc(ref.aviso)}</p></div>`;
+}
+
+const VISTAS={painel:()=>vistaLista("rj"),outros:()=>vistaLista("outros"),revisao:vistaRevisao,preventivo:vistaPreventivo,alertas:vistaAlertas,fontes:vistaFontes,metricas:vistaMetricas,preferencias:vistaPreferencias,usuarios:vistaUsuarios,manual:vistaManual,sinais:vistaSinais};
 
 (async function iniciar(){
   if(!SNAP){ try{SAUDE=await (await fetch("/api/saude")).json();}catch(e){} }

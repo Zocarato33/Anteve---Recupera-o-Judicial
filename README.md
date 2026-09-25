@@ -103,6 +103,16 @@ No plano Pro do Vercel, também é possível trocar o workflow do GitHub por um 
 * **Prazo por execução:** `ANTEVE_ORCAMENTO_S` (padrão 45) controla quanto tempo cada chamada trabalha antes de parar com segurança. `ANTEVE_PARALELO` (padrão 6) controla quantos tribunais entram em cada lote.
 * **Agendador interno:** fica desligado automaticamente no Vercel. Em servidor próprio ou Docker, ele continua funcionando como antes.
 
+## Sinais de recuperação (Inteligência Pré-Recuperação Judicial)
+
+Módulo independente, baseado no Guia Nacional de Inteligência Pré Recuperação Judicial (versão 2.0), no item **Sinais de recuperação** do menu (perfis admin e analista). Usa somente dados anteriores a qualquer pedido: não lê processos, recusa fontes judiciais e marca como fora do escopo empresas cuja razão social indica recuperação ou falência. Tabelas próprias (`pre_*`), rotas próprias (`/api/pre/*`) e código em `anteve/pre_rj.py`.
+
+* **Lista monitorada por CNPJ**, com cadastro da Receita e confiança de identidade (alerta bloqueado abaixo de 0,80).
+* **Catálogo de 11 sinais** com peso, validade e fonte mínima; cada sinal exige fonte, URL, data e trecho original.
+* **Score**: peso × confiança da fonte × materialidade × atualidade, mais corroboração por dimensão (até 15) e menos penalidades; faixas Monitoramento, Atenção, Risco relevante, Risco elevado e Sinal crítico, com a linguagem permitida de cada uma.
+* **Proteções**: duas dimensões para risco elevado (salvo evento financeiro inequívoco), notícias limitadas a 6 pontos, sinais esclarecidos retirados, revisão humana obrigatória a partir de Risco relevante, sem exportação nem contato automático.
+* **Busca na CVM**: o botão Buscar sinais na CVM lê os comunicados de companhias abertas (IPE) e sugere sinais pelo dicionário textual do guia; nenhum pontua antes da aprovação de um analista.
+
 ## Manual do usuário e escopo funcional
 
 A tela **Manual** permite baixar o manual em Word ou PDF e pesquisar dúvidas dentro dele. A busca por palavras-chave aponta o item e a página do PDF, com atalhos por assunto e filtro por seção. Com `ANTHROPIC_API_KEY` configurada, o sistema também redige uma resposta curta usando só os itens encontrados (modelo em `ANTEVE_MODELO_MANUAL`, padrão `claude-opus-5`); sem a chave, fica a busca por palavras-chave.
