@@ -20,6 +20,7 @@ from .db import DB, PAPEIS
 from .normalize import agora, chave_texto, cnj_formatar, cnpj_formatar, cnpj_limpar, cnpj_valido, iso, parse_data
 from . import notifier
 from . import manual as manual_mod
+from . import pre_rj
 
 db = DB(CONFIG.db_path)
 app = FastAPI(title="Antevê", version="1.0.0", description="Radar de recuperações judiciais")
@@ -38,6 +39,7 @@ def garantir_admin(banco):
 
 
 garantir_admin(db)
+pre_rj.garantir(db)
 
 _IPS_LOCAIS = {"127.0.0.1", "::1"}
 
@@ -589,6 +591,150 @@ def manual_perguntar(body: Duvida, u=Depends(exige("ler"))):
         raise HTTPException(422, "seção inexistente")
     db.auditar(u["login"], "manual.perguntar", "manual", None, {"pergunta": body.pergunta[:200], "secao": body.secao})
     return manual_mod.responder(body.pergunta, body.secao)
+
+
+# ------------------------------------------------------------ inteligência pré-recuperação judicial
+# Módulo independente: só dados pré-processuais, acesso restrito ao perfil com camada preventiva.
+def _erro_pre(exc):
+    raise HTTPException(404 if isinstance(exc, LookupError) else 422, str(exc).strip("'"))
+
+
+@app.get("/api/pre/referencias")
+def pre_referencias(u=Depends(exige("preventivo"))):
+    return pre_rj.referencias()
+
+
+@app.get("/api/pre/empresas")
+def pre_empresas(faixa: str = None, q: str = None, u=Depends(exige("preventivo"))):
+    db.auditar(u["login"], "pre.consultar", "pre_empresas", None, {"faixa": faixa, "q": q})
+    sql, par = "SELECT * FROM pre_empresas WHERE 1=1", []
+    if faixa:
+        sql += " AND faixa=?"
+        par.append(faixa.upper())
+    if q:
+        sql += " AND (razao_social LIKE ? OR cnpj LIKE ?)"
+        par += [f"%{q.upper()}%", f"%{cnpj_limpar(q) or q}%"]
+    linhas = db.todos(sql + " ORDER BY fora_escopo IS NOT NULL, score DESC, razao_social LIMIT 1000", par)
+    contagem = {r["faixa"]: r["n"] for r in db.todos("SELECT faixa, COUNT(*) n FROM pre_empresas WHERE fora_escopo IS NULL GROUP BY faixa")}
+    return {"empresas": [pre_rj.resumo_empresa(db, e) for e in linhas], "por_faixa": contagem,
+            "revisoes_pendentes": db.um("SELECT COUNT(*) n FROM pre_empresas WHERE revisao_status='PENDENTE'")["n"],
+            "candidatos_pendentes": db.um("SELECT COUNT(*) n FROM pre_candidatos WHERE status='PENDENTE'")["n"], "aviso": pre_rj.AVISO}
+
+
+@app.get("/api/pre/empresas/{cnpj}")
+def pre_detalhe(cnpj: str, u=Depends(exige("preventivo"))):
+    pre_rj.completar_cadastro(db, cnpj_limpar(cnpj), cnpj_conn.consultar)
+    d = pre_rj.detalhe(db, cnpj)
+    if not d:
+        raise HTTPException(404, "empresa não monitorada")
+    db.auditar(u["login"], "pre.detalhe", "empresa", d["cnpj"])
+    return d
+
+
+class PreEmpresa(BaseModel):
+    cnpj: str
+    evidencia_identidade: str = "CNPJ_PRIMARIA"
+
+
+@app.post("/api/pre/empresas")
+def pre_incluir(body: PreEmpresa, u=Depends(exige("preventivo"))):
+    if not cnpj_valido(body.cnpj):
+        raise HTTPException(422, "CNPJ inválido")
+    cad = None
+    try:
+        cad = cnpj_conn.consultar(body.cnpj)
+    except (FonteIndisponivel, ValueError):
+        pass  # sem cadastro a empresa entra assim mesmo, com a evidência informada
+    try:
+        c, nova = pre_rj.adicionar_empresa(db, body.cnpj, "Inclusão manual", u["login"], body.evidencia_identidade, cadastro=cad)
+    except ValueError as exc:
+        _erro_pre(exc)
+    if not nova:
+        raise HTTPException(409, "empresa já está na lista monitorada")
+    return pre_rj.detalhe(db, c)
+
+
+class PreSinal(BaseModel):
+    codigo: str
+    confianca: str
+    materialidade: str
+    data_evento: str
+    fonte: str
+    url: str
+    trecho_original: str
+    descricao: str | None = None
+    divergencia: str | None = None
+
+
+@app.post("/api/pre/empresas/{cnpj}/sinais")
+def pre_sinal(cnpj: str, body: PreSinal, u=Depends(exige("preventivo"))):
+    try:
+        pre_rj.registrar_sinal(db, cnpj, body.codigo, body.confianca, body.materialidade, body.data_evento, body.fonte,
+                               body.url, body.trecho_original, u["login"], body.descricao, body.divergencia)
+    except (ValueError, LookupError) as exc:
+        _erro_pre(exc)
+    return pre_rj.detalhe(db, cnpj)
+
+
+class PreStatus(BaseModel):
+    status: str
+    justificativa: str
+
+
+@app.post("/api/pre/sinais/{sid}/status")
+def pre_status(sid: int, body: PreStatus, u=Depends(exige("preventivo"))):
+    if len(body.justificativa.strip()) < 10:
+        raise HTTPException(422, "justificativa obrigatória (mínimo 10 caracteres)")
+    try:
+        pre_rj.alterar_status_sinal(db, sid, body.status, u["login"], body.justificativa)
+    except (ValueError, LookupError) as exc:
+        _erro_pre(exc)
+    return {"ok": True}
+
+
+class PreRevisao(BaseModel):
+    decisao: str
+    justificativa: str
+
+
+@app.post("/api/pre/empresas/{cnpj}/revisao")
+def pre_revisao(cnpj: str, body: PreRevisao, u=Depends(exige("preventivo"))):
+    try:
+        pre_rj.revisar(db, cnpj, body.decisao, body.justificativa, u["login"])
+    except (ValueError, LookupError) as exc:
+        _erro_pre(exc)
+    return pre_rj.detalhe(db, cnpj)
+
+
+@app.get("/api/pre/candidatos")
+def pre_candidatos(u=Depends(exige("preventivo"))):
+    return db.todos("SELECT * FROM pre_candidatos WHERE status='PENDENTE' ORDER BY data_evento DESC LIMIT 500")
+
+
+class PreDecisao(BaseModel):
+    aprovar: bool
+    justificativa: str
+    codigo: str | None = None
+    confianca: str = "PRIMARIA"
+    materialidade: str = "MEDIA"
+
+
+@app.post("/api/pre/candidatos/{cid}")
+def pre_decidir(cid: int, body: PreDecisao, u=Depends(exige("preventivo"))):
+    try:
+        pre_rj.decidir_candidato(db, cid, body.aprovar, u["login"], body.justificativa, body.codigo, body.confianca, body.materialidade)
+    except (ValueError, LookupError) as exc:
+        _erro_pre(exc)
+    return {"ok": True}
+
+
+@app.post("/api/pre/cvm")
+def pre_cvm(u=Depends(exige("preventivo"))):
+    import time
+    try:
+        return pre_rj.buscar_cvm(db, u["login"], prazo=time.time() + int(os.environ.get("ANTEVE_ORCAMENTO_S", "45")))
+    except FonteIndisponivel as exc:
+        raise HTTPException(502, f"CVM indisponível: {exc}")
 
 
 @app.post("/api/tpu/sincronizar")

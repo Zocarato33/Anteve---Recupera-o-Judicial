@@ -19,6 +19,7 @@ def cliente(monkeypatch):
     monkeypatch.setattr(api, "db", banco)
     monkeypatch.setattr(CONFIG, "admin_senha", "")
     api.garantir_admin(banco)
+    api.pre_rj.garantir(banco)
     monkeypatch.setattr(CONFIG, "ips_permitidos", [SBK, "179.191.112.34"])
     monkeypatch.setattr(CONFIG, "confiar_proxy", True)
     monkeypatch.setattr(CONFIG, "cron_secret", "segredo")
@@ -162,3 +163,22 @@ def test_manual_busca_download_e_ia_opcional(cliente, monkeypatch):
     assert cliente.post("/api/manual/perguntar", json={"pergunta": "x", "secao": "inexistente"}, headers=adm).status_code == 422
     assert cliente.post("/api/manual/perguntar", json={"pergunta": "a" * 601}, headers=adm).status_code == 422
     assert cliente.get("/api/manual", headers={"x-forwarded-for": SBK}).status_code == 401
+
+
+def test_sinais_de_recuperacao_api_e_permissao(cliente):
+    adm = _entrar(cliente)
+    assert cliente.get("/api/pre/referencias", headers=adm).json()["catalogo"]
+    r = cliente.post("/api/pre/empresas", json={"cnpj": "33.000.167/0001-01"}, headers=adm)
+    assert r.status_code == 200 and r.json()["score"] == 0
+    assert cliente.post("/api/pre/empresas", json={"cnpj": "33000167000101"}, headers=adm).status_code == 409
+    sinal = {"codigo": "DEFAULT_FINANCEIRO", "confianca": "PRIMARIA", "materialidade": "ALTA", "data_evento": "2026-09-20",
+             "fonte": "RI", "url": "https://ri.exemplo.com.br/x", "trecho_original": "vencimento antecipado das debêntures"}
+    d = cliente.post("/api/pre/empresas/33000167000101/sinais", json=sinal, headers=adm).json()
+    assert d["score"] > 0 and d["sinais"][0]["codigo"] == "DEFAULT_FINANCEIRO"
+    assert cliente.post("/api/pre/empresas/33000167000101/sinais", json=dict(sinal, url="https://www.tjsp.jus.br/x"),
+                        headers=adm).status_code == 422
+    lista = cliente.get("/api/pre/empresas", headers=adm).json()
+    assert lista["empresas"][0]["cnpj"] == "33000167000101"
+    r = cliente.post("/api/usuarios", json={"nome": "Com", "login": "com.ercial", "papel": "comercial"}, headers=adm).json()
+    com = _entrar(cliente, "com.ercial", r["senha"])
+    assert cliente.get("/api/pre/empresas", headers=com).status_code == 403
